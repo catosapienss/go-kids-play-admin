@@ -1,0 +1,58 @@
+{
+  "name": "Go Kids Play — Yönetim Sistemi",
+  "short_name": "Go Kids Play",
+  "description": "Çocuk oyun alanı operasyon yönetim sistemi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "lang": "tr-TR",
+  "background_color": "#0f172a",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/brand/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Hızlı Kayıt",
+      "short_name": "Kayıt",
+      "description": "Yeni müşteri kaydı",
+      "url": "/hizli-kayit",
+      "icons": [{ "src": "/brand/favicon.png", "sizes": "512x512" }]
+    },
+    {
+      "name": "Aktif Oyun Alanı",
+      "short_name": "Aktif",
+      "description": "Aktif oturumları görüntüle",
+      "url": "/aktif-oyun",
+      "icons": [{ "src": "/brand/favicon.png", "sizes": "512x512" }]
+    },
+    {
+      "name": "Gün Sonu Kapanış",
+      "short_name": "Gün Sonu",
+      "description": "Günü kapat",
+      "url": "/gun-sonu",
+      "icons": [{ "src": "/brand/favicon.png", "sizes": "512x512" }]
+    }
+  ]
+}
