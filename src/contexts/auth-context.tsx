@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { defaultRouteForRole } from "@/lib/permissions"
 import { isOfflineModeActive, readOfflineUser } from "@/lib/auth/offline-mode"
+import { toAuthEmail } from "@/lib/auth/username"
 import type { UserProfile, UserRole } from "@/types/auth"
 
 interface AuthContextValue {
@@ -13,7 +14,8 @@ interface AuthContextValue {
   loading: boolean
   /** Diagnostic field — explains where the user record came from. */
   roleSource: "supabase-full" | "supabase-fallback" | "auth-only" | "offline-mode" | "none"
-  signIn: (email: string, password: string) => Promise<void>
+  /** Sign in with either a username (preferred) or a legacy email. */
+  signIn: (identifier: string, password: string) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -167,14 +169,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile])
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
+    async (identifier: string, password: string) => {
       const supabase = createClient()
+      const email = toAuthEmail(identifier)
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
 
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         const role = await loadProfile(session.user.id, session.user.email ?? "")
+        // Best-effort last-login stamp. Failure is non-fatal.
+        supabase.rpc("touch_last_login").then(() => undefined, () => undefined)
         router.push(defaultRouteForRole(role))
         router.refresh()
       }
