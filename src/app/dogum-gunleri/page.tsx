@@ -7,6 +7,7 @@ import { OrgStatsBar } from "@/components/dogum-gunleri/org-stats-bar"
 import { MiniCalendar } from "@/components/dogum-gunleri/mini-calendar"
 import { UpcomingEvents } from "@/components/dogum-gunleri/upcoming-events"
 import { OrgList } from "@/components/dogum-gunleri/org-list"
+import { BirthdayPackageManager } from "@/components/dogum-gunleri/package-manager"
 import { ORGANIZATIONS } from "@/lib/organizasyon-data"
 import type { OrgStatus } from "@/types/organizasyon"
 import { cn } from "@/lib/utils"
@@ -50,6 +51,8 @@ export default function DogumGunleriPage() {
 
   return (
     <MainLayout title="Doğum Günleri" subtitle="Organizasyon & Etkinlik Yönetimi">
+      <BirthdayPackageManager />
+
       <OrgStatsBar orgs={ORGANIZATIONS} />
 
       <div className="flex flex-col xl:flex-row gap-5">
