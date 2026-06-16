@@ -28,7 +28,10 @@ const PERF_7 = (base: number, cancel: number): { day: string; txCount: number; c
   { day: "Paz", txCount: base + 3, cancelCount: cancel, revenue: (base + 3) * 380 },
 ]
 
-export const STAFF_MEMBERS: StaffMember[] = [
+// Production: demo staff array emptied. Real account list lives in
+// public.profiles and is rendered by ProductionAccounts.
+export const STAFF_MEMBERS: StaffMember[] = []
+const _LEGACY_STAFF_MEMBERS: StaffMember[] = [
   {
     id: "s_001",
     name: "Ahmet Kaya",
@@ -176,7 +179,8 @@ export const STAFF_MEMBERS: StaffMember[] = [
   },
 ]
 
-export const LIVE_ACTIVITY: ActivityItem[] = [
+export const LIVE_ACTIVITY: ActivityItem[] = []
+const _LEGACY_LIVE_ACTIVITY: ActivityItem[] = [
   { id: "act_1", staffId: "s_002", staffName: "Selin Y.", type: "payment", description: "Büşra Arslan — ₺450 kart ödeme", datetime: "17:55" },
   { id: "act_2", staffId: "s_001", staffName: "Ahmet K.", type: "payment", description: "Zeynep Arslan — ₺350 nakit", datetime: "17:41" },
   { id: "act_3", staffId: "s_002", staffName: "Selin Y.", type: "payment", description: "Murat Kaya — ₺550 kart", datetime: "17:20" },
