@@ -1,4 +1,72 @@
-import type { UserRole } from "@/types/auth"
+import type { ModuleKey, PermissionOverrides, UserProfile, UserRole } from "@/types/auth"
+
+// ─── Module access (per-user overrides on top of role defaults) ──────────────
+//
+// Finance is restricted: admin gets it by default, manager/staff must be
+// explicitly granted via the staff management screen.
+
+export const DEFAULT_MODULE_ACCESS: Record<UserRole, Record<ModuleKey, boolean>> = {
+  super_admin: {
+    dashboard: true, customers: true, memberships: true, wallet: true,
+    birthdays: true, reports: true, finance: true, staff: true,
+    settings: true, tv: true,
+  },
+  admin: {
+    dashboard: true, customers: true, memberships: true, wallet: true,
+    birthdays: true, reports: true, finance: true, staff: true,
+    settings: true, tv: true,
+  },
+  manager: {
+    dashboard: true, customers: true, memberships: true, wallet: true,
+    birthdays: true, reports: true, finance: false, staff: false,
+    settings: false, tv: true,
+  },
+  staff: {
+    dashboard: false, customers: false, memberships: false, wallet: false,
+    birthdays: false, reports: false, finance: false, staff: false,
+    settings: false, tv: false,
+  },
+  cashier: {
+    dashboard: false, customers: false, memberships: false, wallet: false,
+    birthdays: false, reports: false, finance: false, staff: false,
+    settings: false, tv: false,
+  },
+}
+
+/** Map a route prefix to the module it belongs to (for route-level gating). */
+export const ROUTE_MODULE: Record<string, ModuleKey> = {
+  "/":              "dashboard",
+  "/crm":           "customers",
+  "/uyelikler":     "memberships",
+  "/cuzdan":        "wallet",
+  "/dogum-gunleri": "birthdays",
+  "/raporlar":      "reports",
+  "/personeller":   "staff",
+  "/ayarlar":       "settings",
+  "/tv":            "tv",
+  "/canli":         "tv",
+}
+
+/** Resolve effective access by combining role default + per-user override. */
+export function hasModuleAccess(
+  user: Pick<UserProfile, "role" | "permissions"> | null | undefined,
+  module: ModuleKey,
+): boolean {
+  if (!user) return false
+  const override = user.permissions?.[module]
+  if (typeof override === "boolean") return override
+  return DEFAULT_MODULE_ACCESS[user.role]?.[module] ?? false
+}
+
+/** Apply overrides verbatim (used when persisting). Strips undefineds. */
+export function compactOverrides(p: PermissionOverrides): PermissionOverrides {
+  const out: PermissionOverrides = {}
+  for (const key of Object.keys(p) as ModuleKey[]) {
+    const v = p[key]
+    if (typeof v === "boolean") out[key] = v
+  }
+  return out
+}
 
 /** Routes that require a minimum role to access */
 export const ROUTE_ROLES: Record<string, UserRole[]> = {

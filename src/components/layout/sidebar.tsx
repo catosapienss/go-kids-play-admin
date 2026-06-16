@@ -13,14 +13,18 @@ import { useState } from "react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/contexts/auth-context"
 import { ROLE_LABELS, ROLE_COLORS } from "@/types/auth"
-import type { UserRole } from "@/types/auth"
+import type { UserRole, ModuleKey } from "@/types/auth"
+import { hasModuleAccess } from "@/lib/permissions"
 import { BrandLogo } from "@/components/brand-logo"
 
 interface NavItem {
   href: string
   label: string
   icon: React.ElementType
-  roles: UserRole[]
+  /** Module key — sidebar visibility comes from per-user permission overrides. */
+  module?: ModuleKey
+  /** Operational routes everyone with a session can use (registration, active sessions, day-end). */
+  roles?: UserRole[]
   external?: boolean
 }
 
@@ -35,7 +39,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: "operations",
     label: "Operasyon",
     items: [
-      { href: "/",              label: "Dashboard",        icon: LayoutDashboard, roles: ["super_admin", "admin", "manager"] },
+      { href: "/",              label: "Dashboard",        icon: LayoutDashboard, module: "dashboard" },
       { href: "/hizli-kayit",   label: "Hızlı Kayıt",      icon: UserPlus,        roles: ["super_admin", "admin", "manager", "staff", "cashier"] },
       { href: "/aktif-oyun",    label: "Aktif Oyun Alanı", icon: Play,            roles: ["super_admin", "admin", "manager", "staff", "cashier"] },
     ],
@@ -44,17 +48,17 @@ const NAV_GROUPS: NavGroup[] = [
     id: "customers",
     label: "Müşteri & Üyelik",
     items: [
-      { href: "/crm",           label: "Müşteriler",       icon: Users,           roles: ["super_admin", "admin", "manager"] },
-      { href: "/uyelikler",     label: "Üyelikler",        icon: Sparkles,        roles: ["super_admin", "admin", "manager"] },
-      { href: "/cuzdan",        label: "Cüzdan",           icon: Wallet,          roles: ["super_admin", "admin", "manager"] },
-      { href: "/dogum-gunleri", label: "Doğum Günleri",    icon: Cake,            roles: ["super_admin", "admin", "manager"] },
+      { href: "/crm",           label: "Müşteriler",       icon: Users,           module: "customers" },
+      { href: "/uyelikler",     label: "Üyelikler",        icon: Sparkles,        module: "memberships" },
+      { href: "/cuzdan",        label: "Cüzdan",           icon: Wallet,          module: "wallet" },
+      { href: "/dogum-gunleri", label: "Doğum Günleri",    icon: Cake,            module: "birthdays" },
     ],
   },
   {
     id: "finance",
     label: "Finans & Analiz",
     items: [
-      { href: "/raporlar",      label: "Raporlar",         icon: BarChart3,       roles: ["super_admin", "admin", "manager"] },
+      { href: "/raporlar",      label: "Raporlar",         icon: BarChart3,       module: "reports" },
       { href: "/gun-sonu",      label: "Gün Sonu Kapanış", icon: ShieldCheck,     roles: ["super_admin", "admin", "manager", "staff", "cashier"] },
     ],
   },
@@ -62,13 +66,12 @@ const NAV_GROUPS: NavGroup[] = [
     id: "system",
     label: "Sistem",
     items: [
-      { href: "/personeller",   label: "Personel Yönetimi",icon: UserCheck,       roles: ["super_admin", "admin"] },
+      { href: "/personeller",   label: "Personel Yönetimi",icon: UserCheck,       module: "staff" },
       { href: "/audit-log",     label: "İşlem Kayıtları",  icon: ClipboardList,   roles: ["super_admin", "admin", "manager"] },
-      { href: "/tv/live",       label: "TV Ekranı",        icon: Tv,              roles: ["super_admin", "admin", "manager"], external: true },
-      { href: "/canli",         label: "Oyun Alanı Ekranı",icon: Video,           roles: ["super_admin", "admin", "manager"], external: true },
-      { href: "/durum",          label: "İşletme Özeti",    icon: CheckSquare,     roles: ["super_admin", "admin", "manager"] },
-      { href: "/dev-status",    label: "Sistem Durumu",    icon: Activity,        roles: ["super_admin", "admin"] },
-      { href: "/ayarlar",       label: "Ayarlar",          icon: Settings,        roles: ["super_admin", "admin"] },
+      { href: "/tv/live",       label: "TV Ekranı",        icon: Tv,              module: "tv", external: true },
+      { href: "/canli",         label: "Oyun Alanı Ekranı",icon: Video,           module: "tv", external: true },
+      { href: "/durum",         label: "İşletme Özeti",    icon: CheckSquare,     roles: ["super_admin", "admin", "manager"] },
+      { href: "/ayarlar",       label: "Ayarlar",          icon: Settings,        module: "settings" },
     ],
   },
 ]
@@ -79,8 +82,14 @@ export function Sidebar() {
   const { user, signOut } = useAuth()
 
   const visibleGroups = user
-    ? NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(user.role)) }))
-        .filter((g) => g.items.length > 0)
+    ? NAV_GROUPS.map((g) => ({
+        ...g,
+        items: g.items.filter((i) => {
+          if (i.module) return hasModuleAccess(user, i.module)
+          if (i.roles)  return i.roles.includes(user.role)
+          return false
+        }),
+      })).filter((g) => g.items.length > 0)
     : []
 
   const initials = user?.fullName

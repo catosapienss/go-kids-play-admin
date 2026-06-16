@@ -13,8 +13,11 @@ import { ShiftClockCard } from "@/components/personel/shift-clock-card"
 import { ActiveStaffPanel } from "@/components/personel/active-staff-panel"
 import { RealActivityTimeline } from "@/components/personel/real-activity-timeline"
 import { RefundLogsPanel } from "@/components/personel/refund-logs-panel"
+import { ProductionAccounts } from "@/components/personel/production-accounts"
+import { UserCog } from "lucide-react"
 
 const TABS = [
+  { id: "accounts",    label: "Hesaplar", icon: UserCog },
   { id: "shift",       label: "Vardiya",  icon: Clock },
   { id: "activity",    label: "Aktivite", icon: Activity },
   { id: "staff",       label: "Personel", icon: Users },
@@ -29,7 +32,7 @@ const STATUS_META = {
 }
 
 export default function PersonellerPage() {
-  const [activeTab, setActiveTab] = useState("shift")
+  const [activeTab, setActiveTab] = useState("accounts")
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState<StaffRole | "all">("all")
   const [statusFilter, setStatusFilter] = useState<StaffStatus | "all">("all")
@@ -98,6 +101,13 @@ export default function PersonellerPage() {
               )
             })}
           </div>
+
+          {/* Accounts tab — real Supabase-backed user management */}
+          {activeTab === "accounts" && (
+            <div className="p-4">
+              <ProductionAccounts />
+            </div>
+          )}
 
           {/* Staff tab */}
           {activeTab === "staff" && (

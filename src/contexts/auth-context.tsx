@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Attempt 1 — full shape including branch_id (migration 005 applied).
       const full = await supabase
         .from("profiles")
-        .select("full_name, phone, role, is_active, branch_id")
+        .select("full_name, phone, role, is_active, branch_id, username, permissions, last_login_at, disabled")
         .eq("id", userId)
         .single()
 
@@ -63,6 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role,
           isActive: full.data.is_active ?? true,
           branchId: (full.data.branch_id as string | null) ?? null,
+          username: (full.data.username as string | null) ?? null,
+          permissions: (full.data.permissions as Record<string, boolean> | null) ?? {},
+          lastLoginAt: (full.data.last_login_at as string | null) ?? null,
+          disabled: (full.data.disabled as boolean | null) ?? false,
         })
         setRoleSource("supabase-full")
         return role

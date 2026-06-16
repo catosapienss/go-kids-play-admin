@@ -26,6 +26,41 @@ export function isStaffRole(role: UserRole): boolean {
   return role === "staff" || role === "cashier"
 }
 
+/**
+ * Discrete permission keys that gate top-level modules. Admins can override
+ * role defaults per-user from the staff management screen.
+ */
+export type ModuleKey =
+  | "dashboard"
+  | "customers"
+  | "memberships"
+  | "wallet"
+  | "birthdays"
+  | "reports"
+  | "finance"
+  | "staff"
+  | "settings"
+  | "tv"
+
+export const MODULE_LABELS: Record<ModuleKey, string> = {
+  dashboard:   "Dashboard",
+  customers:   "Müşteriler",
+  memberships: "Üyelikler",
+  wallet:      "Cüzdan",
+  birthdays:   "Doğum Günleri",
+  reports:     "Raporlar",
+  finance:     "Finans",
+  staff:       "Personel",
+  settings:    "Ayarlar",
+  tv:          "TV / Canlı Ekran",
+}
+
+/**
+ * Per-user permission overrides. `true` grants, `false` revokes, absent means
+ * "use the role default". Stored in profiles.permissions as JSONB.
+ */
+export type PermissionOverrides = Partial<Record<ModuleKey, boolean>>
+
 export interface UserProfile {
   id: string
   email: string
@@ -35,6 +70,11 @@ export interface UserProfile {
   isActive: boolean
   /** Null when the user is a super_admin (cross-branch). */
   branchId?: string | null
+  /** Per-user grant/revoke overrides on top of the role defaults. */
+  permissions?: PermissionOverrides
+  username?: string | null
+  lastLoginAt?: string | null
+  disabled?: boolean
 }
 
 /** Helper: super admins are not bound to a single branch. */
