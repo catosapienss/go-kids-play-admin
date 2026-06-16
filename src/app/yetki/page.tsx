@@ -26,7 +26,7 @@ const SOURCE_EXPLAIN: Record<string, { label: string; tone: "ok" | "warn" | "bad
   "supabase-full":     { label: "Supabase (tam şema)",  tone: "ok",   hint: "profiles tablosundan tüm kolonlar başarıyla yüklendi" },
   "supabase-fallback": { label: "Supabase (eksik kolon)", tone: "warn", hint: "branch_id kolonu eksik — recovery-roles.sql'i çalıştır" },
   "auth-only":         { label: "Sadece auth (profil yok)", tone: "bad", hint: "profiles tablosunda bu kullanıcı için satır yok" },
-  "offline-mode":      { label: "Çevrimdışı (demo modu)", tone: "warn", hint: "Supabase bypass — localStorage'dan yüklendi" },
+  "offline-mode":      { label: "Çevrimdışı kurtarma",    tone: "warn", hint: "Supabase erişilemediği için localStorage'dan yüklendi" },
   "none":              { label: "Anonim",                 tone: "bad", hint: "Hiç kullanıcı yok" },
 }
 
