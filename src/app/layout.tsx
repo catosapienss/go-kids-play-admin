@@ -3,6 +3,8 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { AuthProvider } from "@/contexts/auth-context"
+import { SessionLockProvider } from "@/contexts/session-lock-context"
+import { LockScreen } from "@/components/system/lock-screen"
 import { SessionStoreProvider } from "@/lib/stores/session-store"
 import { NotificationStoreProvider } from "@/lib/stores/notification-store"
 import { BranchProvider } from "@/lib/branch/branch-context"
@@ -61,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <RealtimeSupervisor>
           <OfflineBanner />
           <AuthProvider>
+            <SessionLockProvider>
             <BranchProvider>
               <SettingsProvider>
               <DemoModeProvider>
@@ -69,11 +72,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   {children}
                   <QuickActionsLauncher />
                   <PwaInstallPrompt />
+                  <LockScreen />
                 </SessionStoreProvider>
               </NotificationStoreProvider>
               </DemoModeProvider>
               </SettingsProvider>
             </BranchProvider>
+            </SessionLockProvider>
             <Toaster
               position="top-right"
               toastOptions={{
