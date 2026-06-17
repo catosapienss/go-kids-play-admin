@@ -16,6 +16,8 @@ import {
   pauseSession as svcPause,
   resumeSession as svcResume,
   endSession as svcEnd,
+  endSessionWithReason as svcEndWithReason,
+  type EndReason,
 } from "@/lib/services/session.service"
 import type { DbSessionRow } from "@/types/realtime"
 import type { ActiveSession, LiveEvent } from "@/types/aktif-oyun"
@@ -35,7 +37,7 @@ interface SessionStoreValue {
   extendEndTime: (id: string, minutes: number) => void
   pause: (id: string) => Promise<void>
   resume: (id: string) => Promise<void>
-  exit: (id: string) => Promise<void>
+  exit: (id: string, reason?: EndReason, note?: string) => Promise<void>
   /** Force-refetch from Supabase. Called by /hizli-kayit after submit so the
    *  new session shows up even if realtime publication is misconfigured. */
   refresh: () => Promise<void>
@@ -315,15 +317,26 @@ export function SessionStoreProvider({ children }: { children: React.ReactNode }
     }
   }, [])
 
-  const exit = useCallback(async (id: string) => {
+  const exit = useCallback(async (id: string, reason?: EndReason, note?: string) => {
     const s = sessionsRef.current.find((x) => x.id === id)
     try {
-      await svcEnd(id)
+      // Always use the reasoned RPC when a reason is supplied; fall back to
+      // the legacy end_session RPC only if no reason was given (e.g. older
+      // call sites that haven't been migrated yet).
+      if (reason) {
+        await svcEndWithReason(id, reason, note)
+      } else {
+        await svcEnd(id)
+      }
+      // Optimistic local removal in case realtime is slow.
+      setAndSync(sessionsRef.current.filter((x) => x.id !== id))
+      delete endTimesRef.current[id]
       if (s) {
         addEvent({
           id: makeEventId(), type: "exit",
           childName: s.childName, parentName: s.parentName, staffName: s.staffName,
-          timestamp: new Date(), detail: "Normal çıkış",
+          timestamp: new Date(),
+          detail: reason ? "Sonlandırıldı" : "Normal çıkış",
         })
       }
     } catch (err) {

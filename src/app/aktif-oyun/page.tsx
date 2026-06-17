@@ -9,7 +9,12 @@ import { CompactSessionCard } from "@/components/aktif-oyun/compact-session-card
 import { DensityToggle, useDensity } from "@/components/aktif-oyun/density-toggle"
 import { ExtendTimeModal } from "@/components/aktif-oyun/extend-time-modal"
 import { CancelSessionModal } from "@/components/aktif-oyun/cancel-session-modal"
+import { EndSessionModal } from "@/components/aktif-oyun/end-session-modal"
+import { CompletionHistoryPanel } from "@/components/aktif-oyun/completion-history-panel"
 import { LiveEventLog } from "@/components/aktif-oyun/live-event-log"
+import type { EndReason } from "@/lib/services/session.service"
+import { useAuth } from "@/contexts/auth-context"
+import { hasModuleAccess } from "@/lib/permissions"
 import { useSessionStore } from "@/lib/stores/session-store"
 import { getStatus } from "@/types/aktif-oyun"
 import type { ActiveSession, FilterType } from "@/types/aktif-oyun"
@@ -17,17 +22,32 @@ import { Baby, Loader2 } from "lucide-react"
 
 export default function AktifOyunPage() {
   const { sessions, events, isLoading, pause, resume, exit } = useSessionStore()
+  const { user } = useAuth()
   const [filter, setFilter] = useState<FilterType>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [extendTarget, setExtendTarget] = useState<ActiveSession | null>(null)
   const [cancelTarget, setCancelTarget] = useState<ActiveSession | null>(null)
+  const [endTarget,    setEndTarget]    = useState<ActiveSession | null>(null)
+  const [historyOpen,  setHistoryOpen]  = useState(false)
   const [density, setDensity] = useDensity()
+
+  const canSeeHistory = !!user && (user.role === "admin" || user.role === "super_admin" || user.role === "manager")
 
   // ── Handlers (thin wrappers — store does the work) ──────────────────────
 
   const handlePause  = useCallback((id: string) => pause(id), [pause])
   const handleResume = useCallback((id: string) => resume(id), [resume])
-  const handleExit   = useCallback((id: string) => exit(id), [exit])
+  // Open the end-with-reason modal instead of immediately ending. The modal
+  // calls exit(id, reason, note) once the operator confirms.
+  const handleExit   = useCallback((id: string) => {
+    const target = sessions.find((s) => s.id === id)
+    if (target) setEndTarget(target)
+  }, [sessions])
+
+  const handleConfirmEnd = useCallback(async (reason: EndReason, note: string | undefined) => {
+    if (!endTarget) return
+    await exit(endTarget.id, reason, note)
+  }, [endTarget, exit])
 
   // ── Filtering & sorting ────────────────────────────────────────────────
 
@@ -174,6 +194,29 @@ export default function AktifOyunPage() {
             exit(cancelSession.id)
           }}
         />
+      )}
+
+      {endTarget && (
+        <EndSessionModal
+          session={endTarget}
+          onClose={() => setEndTarget(null)}
+          onConfirm={handleConfirmEnd}
+        />
+      )}
+
+      {/* Manager-only completion history overlay */}
+      {canSeeHistory && historyOpen && (
+        <CompletionHistoryPanel onClose={() => setHistoryOpen(false)} />
+      )}
+
+      {/* Manager-only floating "Tamamlanan Oturumlar" button */}
+      {canSeeHistory && !historyOpen && (
+        <button
+          onClick={() => setHistoryOpen(true)}
+          className="fixed bottom-16 right-6 z-30 px-4 py-2.5 rounded-full bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-lg shadow-violet-500/30 inline-flex items-center gap-2"
+        >
+          Tamamlanan Oturumlar
+        </button>
       )}
     </MainLayout>
   )

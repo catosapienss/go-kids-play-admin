@@ -68,3 +68,71 @@ export async function endSession(sessionId: string): Promise<void> {
   const { error } = await supabase.rpc("end_session", { p_session_id: sessionId })
   if (error) throw error
 }
+
+// ─── Manual termination with reason ──────────────────────────────────────────
+export type EndReason =
+  | "customer_left_early"
+  | "parent_request"
+  | "child_request"
+  | "emergency"
+  | "staff_decision"
+  | "other"
+
+export const END_REASON_LABELS: Record<EndReason, string> = {
+  customer_left_early: "Müşteri erken ayrıldı",
+  parent_request:      "Veli isteği",
+  child_request:       "Çocuk isteği",
+  emergency:           "Acil durum",
+  staff_decision:      "Personel kararı",
+  other:               "Diğer",
+}
+
+export async function endSessionWithReason(
+  sessionId: string,
+  reason: EndReason,
+  note?: string,
+): Promise<{ session_id: string; ended_at: string; early_exit: boolean }> {
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc("end_session_with_reason", {
+    p_session_id: sessionId,
+    p_reason:     reason,
+    p_note:       note ?? null,
+  })
+  if (error) throw error
+  return data as { session_id: string; ended_at: string; early_exit: boolean }
+}
+
+// ─── Completion-log read model (manager history panel) ───────────────────────
+export interface CompletionLogRow {
+  id: string
+  child_name: string
+  parent_name: string
+  parent_phone: string | null
+  start_time: string
+  planned_end: string | null
+  actual_end: string | null
+  duration_minutes: number
+  end_reason: string | null
+  end_note: string | null
+  early_exit: boolean
+  ended_by_name: string | null
+  ended_by_username: string | null
+}
+
+export async function fetchCompletionLog(opts: {
+  limit?: number
+  filter?: "all" | "early" | "normal"
+} = {}): Promise<CompletionLogRow[]> {
+  const supabase = createClient()
+  let q = supabase
+    .from("session_completion_log")
+    .select("*")
+    .limit(opts.limit ?? 50)
+
+  if (opts.filter === "early")  q = q.eq("early_exit", true)
+  if (opts.filter === "normal") q = q.eq("early_exit", false)
+
+  const { data, error } = await q
+  if (error) throw error
+  return (data ?? []) as CompletionLogRow[]
+}
