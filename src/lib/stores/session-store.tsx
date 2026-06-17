@@ -36,6 +36,9 @@ interface SessionStoreValue {
   pause: (id: string) => Promise<void>
   resume: (id: string) => Promise<void>
   exit: (id: string) => Promise<void>
+  /** Force-refetch from Supabase. Called by /hizli-kayit after submit so the
+   *  new session shows up even if realtime publication is misconfigured. */
+  refresh: () => Promise<void>
 }
 
 const SessionStoreContext = createContext<SessionStoreValue | null>(null)
@@ -292,6 +295,26 @@ export function SessionStoreProvider({ children }: { children: React.ReactNode }
     }
   }, [])
 
+  // Defensive refetch — used by /hizli-kayit after a successful registration
+  // so the new row appears in /aktif-oyun even if the realtime channel did
+  // not deliver the INSERT (e.g. publication not configured for the table).
+  const refresh = useCallback(async () => {
+    try {
+      const data = await fetchActiveSessions()
+      setAndSync(data)
+      endTimesRef.current = {}
+      data.forEach((s) => {
+        if (s.isPaused || s.packageType === "Serbest") {
+          delete endTimesRef.current[s.id]
+        } else {
+          endTimesRef.current[s.id] = Date.now() + s.remainingSeconds * 1000
+        }
+      })
+    } catch (err) {
+      slog.error("session refresh failed", undefined, err)
+    }
+  }, [])
+
   const exit = useCallback(async (id: string) => {
     const s = sessionsRef.current.find((x) => x.id === id)
     try {
@@ -309,7 +332,7 @@ export function SessionStoreProvider({ children }: { children: React.ReactNode }
   }, [])
 
   return (
-    <SessionStoreContext.Provider value={{ sessions, events, isLoading, extend, extendEndTime, pause, resume, exit }}>
+    <SessionStoreContext.Provider value={{ sessions, events, isLoading, extend, extendEndTime, pause, resume, exit, refresh }}>
       {children}
     </SessionStoreContext.Provider>
   )

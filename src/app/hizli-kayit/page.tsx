@@ -12,6 +12,7 @@ import type { LookupResult } from "@/lib/services/entry-code.service"
 import { ShiftClockCard } from "@/components/personel/shift-clock-card"
 import { createChild, createSession, createPayment, deductWallet } from "@/lib/services/pos.service"
 import { useAuth } from "@/contexts/auth-context"
+import { useSessionStore } from "@/lib/stores/session-store"
 import { toast } from "sonner"
 import type { Customer, ChildEntry, PaymentEntry, PaymentMethod } from "@/types/hizli-kayit"
 
@@ -64,6 +65,7 @@ function splitPaymentsPerChild(
 
 export default function HizliKayitPage() {
   const { user } = useAuth()
+  const { refresh: refreshSessions } = useSessionStore()
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [children, setChildren] = useState<ChildEntry[]>([])
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
@@ -213,6 +215,11 @@ export default function HizliKayitPage() {
       if (totalWallet > 0) {
         await deductWallet(selectedCustomer.id, totalWallet)
       }
+
+      // Defensive: refetch the active-session store so the new row(s) show up
+      // even if the realtime publication for `sessions` isn't configured. This
+      // makes "registration → appears in Active Sessions" deterministic.
+      void refreshSessions()
 
       setShowSuccess(true)
       toast.success("Oyun başlatıldı!")
