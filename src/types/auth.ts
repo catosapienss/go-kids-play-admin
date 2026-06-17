@@ -41,6 +41,7 @@ export type ModuleKey =
   | "staff"
   | "settings"
   | "tv"
+  | "retail"
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
   dashboard:   "Dashboard",
@@ -53,6 +54,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   staff:       "Personel",
   settings:    "Ayarlar",
   tv:          "TV / Canlı Ekran",
+  retail:      "Perakende Satış",
 }
 
 /**

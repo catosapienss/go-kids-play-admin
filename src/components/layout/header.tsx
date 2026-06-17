@@ -8,6 +8,7 @@ import { ROLE_LABELS, ROLE_COLORS } from "@/types/auth"
 import { cn } from "@/lib/utils"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import { BranchSwitcher } from "@/components/branch/branch-switcher"
+import { LockNowButton } from "@/components/system/lock-now-button"
 
 interface HeaderProps {
   title: string
@@ -74,6 +75,9 @@ export function Header({ title, subtitle }: HeaderProps) {
           <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Tema değiştir</span>
         </Button>
+
+        {/* Manual session lock — visible to every signed-in user */}
+        <LockNowButton compact />
 
         {/* Notifications — wired to the alert engine */}
         <NotificationBell />

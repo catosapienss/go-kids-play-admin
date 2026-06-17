@@ -6,7 +6,7 @@ import {
   LayoutDashboard, UserPlus, Play, Users, Cake,
   Wallet, BarChart3, UserCheck, Settings,
   ChevronLeft, ChevronRight, LogOut, ShieldCheck, Sparkles, Tv, Video,
-  ClipboardList, Activity, CheckSquare,
+  ClipboardList, Activity, CheckSquare, ShoppingBag,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
@@ -42,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/",              label: "Dashboard",        icon: LayoutDashboard, module: "dashboard" },
       { href: "/hizli-kayit",   label: "Hızlı Kayıt",      icon: UserPlus,        roles: ["super_admin", "admin", "manager", "staff", "cashier"] },
       { href: "/aktif-oyun",    label: "Aktif Oyun Alanı", icon: Play,            roles: ["super_admin", "admin", "manager", "staff", "cashier"] },
+      { href: "/perakende",     label: "Perakende Satış",  icon: ShoppingBag,     module: "retail" },
     ],
   },
   {

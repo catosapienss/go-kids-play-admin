@@ -9,27 +9,27 @@ export const DEFAULT_MODULE_ACCESS: Record<UserRole, Record<ModuleKey, boolean>>
   super_admin: {
     dashboard: true, customers: true, memberships: true, wallet: true,
     birthdays: true, reports: true, finance: true, staff: true,
-    settings: true, tv: true,
+    settings: true, tv: true, retail: true,
   },
   admin: {
     dashboard: true, customers: true, memberships: true, wallet: true,
     birthdays: true, reports: true, finance: true, staff: true,
-    settings: true, tv: true,
+    settings: true, tv: true, retail: true,
   },
   manager: {
     dashboard: true, customers: true, memberships: true, wallet: true,
     birthdays: true, reports: true, finance: false, staff: false,
-    settings: false, tv: true,
+    settings: false, tv: true, retail: true,
   },
   staff: {
     dashboard: false, customers: false, memberships: false, wallet: false,
     birthdays: false, reports: false, finance: false, staff: false,
-    settings: false, tv: false,
+    settings: false, tv: false, retail: true,
   },
   cashier: {
     dashboard: false, customers: false, memberships: false, wallet: false,
     birthdays: false, reports: false, finance: false, staff: false,
-    settings: false, tv: false,
+    settings: false, tv: false, retail: true,
   },
 }
 

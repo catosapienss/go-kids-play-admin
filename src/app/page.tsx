@@ -13,6 +13,7 @@ import { PopularPackagesPanel } from "@/components/dashboard/popular-packages"
 import { EventSummaryPanel } from "@/components/dashboard/event-summary-panel"
 import { RepeatVisitorsPanel } from "@/components/dashboard/repeat-visitors-panel"
 import { MembershipsAnalyticsPanel } from "@/components/uyelikler/memberships-analytics-panel"
+import { OwnerRevenuePanel } from "@/components/dashboard/owner-revenue-panel"
 
 export default function DashboardPage() {
   const today = new Date().toLocaleDateString("tr-TR", {
@@ -25,6 +26,11 @@ export default function DashboardPage() {
         {/* 1. KPI strip (top metrics) */}
         <section>
           <KpiBar />
+        </section>
+
+        {/* 1b. Owner revenue overview — gated by hasModuleAccess(user, "finance") */}
+        <section>
+          <OwnerRevenuePanel />
         </section>
 
         {/* 2. Live operations + Revenue trend (primary row) */}
