@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { Search, Plus, X } from "lucide-react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { OrgStatsBar } from "@/components/dogum-gunleri/org-stats-bar"
@@ -8,8 +8,9 @@ import { MiniCalendar } from "@/components/dogum-gunleri/mini-calendar"
 import { UpcomingEvents } from "@/components/dogum-gunleri/upcoming-events"
 import { OrgList } from "@/components/dogum-gunleri/org-list"
 import { BirthdayPackageManager } from "@/components/dogum-gunleri/package-manager"
-import { ORGANIZATIONS } from "@/lib/organizasyon-data"
-import type { OrgStatus } from "@/types/organizasyon"
+import { NewOrganizationModal } from "@/components/dogum-gunleri/new-organization-modal"
+import { listOrganizations, type OrganizationRow } from "@/lib/services/organizations.service"
+import type { Organization, OrgStatus } from "@/types/organizasyon"
 import { cn } from "@/lib/utils"
 
 const STATUS_FILTERS: { key: OrgStatus | "all"; label: string; active: string }[] = [
@@ -20,13 +21,49 @@ const STATUS_FILTERS: { key: OrgStatus | "all"; label: string; active: string }[
   { key: "cancelled", label: "İptal", active: "bg-red-500 text-white" },
 ]
 
+// Map Supabase organization row to the legacy Organization shape used by
+// the existing UI components (OrgList, MiniCalendar, UpcomingEvents).
+function rowToOrganization(r: OrganizationRow): Organization {
+  return {
+    id: r.id,
+    name: r.child_name ? `${r.child_name} doğum günü` : "Doğum günü",
+    childName: r.child_name,
+    childAge: r.child_age ?? 0,
+    parentName: r.parent_name,
+    parentPhone: r.parent_phone ?? "",
+    date: r.event_date,
+    time: r.event_time ?? "",
+    guestCount: r.guest_count,
+    packageId: r.package_id ?? "",
+    revenue: Number(r.total_price ?? 0),
+    status: r.status as Organization["status"],
+    notes: r.notes ?? "",
+    paymentReceived: 0,
+    paymentTotal: Number(r.total_price ?? 0),
+    extras: [],
+  }
+}
+
 export default function DogumGunleriPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<OrgStatus | "all">("all")
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
+  const [showNew, setShowNew] = useState(false)
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+
+  const reload = useCallback(async () => {
+    try {
+      const rows = await listOrganizations()
+      setOrganizations(rows.map(rowToOrganization))
+    } catch (e) {
+      console.warn("[/dogum-gunleri] load failed", e)
+    }
+  }, [])
+
+  useEffect(() => { void reload() }, [reload])
 
   const filtered = useMemo(() => {
-    let list = [...ORGANIZATIONS]
+    let list = [...organizations]
 
     if (search) {
       const q = search.toLowerCase()
@@ -53,17 +90,17 @@ export default function DogumGunleriPage() {
     <MainLayout title="Doğum Günleri" subtitle="Organizasyon & Etkinlik Yönetimi">
       <BirthdayPackageManager />
 
-      <OrgStatsBar orgs={ORGANIZATIONS} />
+      <OrgStatsBar orgs={organizations} />
 
       <div className="flex flex-col xl:flex-row gap-5">
         {/* Left sidebar: calendar + upcoming */}
         <div className="xl:w-72 flex-shrink-0 space-y-4">
           <MiniCalendar
-            organizations={ORGANIZATIONS}
+            organizations={organizations}
             selectedDate={selectedDate}
             onSelectDate={(d) => setSelectedDate(selectedDate === d ? undefined : d)}
           />
-          <UpcomingEvents organizations={ORGANIZATIONS} />
+          <UpcomingEvents organizations={organizations} />
         </div>
 
         {/* Main content */}
@@ -95,17 +132,27 @@ export default function DogumGunleriPage() {
               </button>
             )}
 
-            <button className="ml-auto flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm shadow-violet-500/20">
+            <button
+              onClick={() => setShowNew(true)}
+              className="ml-auto flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm shadow-violet-500/20"
+            >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Yeni Organizasyon</span>
             </button>
           </div>
 
+          {showNew && (
+            <NewOrganizationModal
+              onClose={() => setShowNew(false)}
+              onCreated={() => void reload()}
+            />
+          )}
+
           {/* Status filters */}
           <div className="flex items-center gap-1.5 flex-wrap mb-4">
             {STATUS_FILTERS.map(({ key, label, active }) => {
               const isActive = statusFilter === key
-              const count = key === "all" ? ORGANIZATIONS.length : ORGANIZATIONS.filter((o) => o.status === key).length
+              const count = key === "all" ? organizations.length : organizations.filter((o) => o.status === key).length
               return (
                 <button
                   key={key}
