@@ -23,7 +23,29 @@ const STATUS_FILTERS: { key: OrgStatus | "all"; label: string; active: string }[
 
 // Map Supabase organization row to the legacy Organization shape used by
 // the existing UI components (OrgList, MiniCalendar, UpcomingEvents).
+//
+// The DB status enum (pending/confirmed/completed/cancelled) is mapped to
+// the legacy UI enum (upcoming/ongoing/completed/cancelled) so newly-created
+// rows pass the filter pills. event_date in the future ⇒ "upcoming";
+// today ⇒ "ongoing"; past ⇒ "completed" unless DB already says cancelled.
 function rowToOrganization(r: OrganizationRow): Organization {
+  const dbStatus = r.status
+  let uiStatus: Organization["status"]
+  if (dbStatus === "cancelled") {
+    uiStatus = "cancelled"
+  } else if (dbStatus === "completed") {
+    uiStatus = "completed"
+  } else {
+    // pending / confirmed → derive from event_date
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const event = new Date(r.event_date)
+    event.setHours(0, 0, 0, 0)
+    if (event.getTime() < today.getTime()) uiStatus = "completed"
+    else if (event.getTime() > today.getTime()) uiStatus = "upcoming"
+    else uiStatus = "ongoing"
+  }
+
   return {
     id: r.id,
     name: r.child_name ? `${r.child_name} doğum günü` : "Doğum günü",
@@ -36,7 +58,7 @@ function rowToOrganization(r: OrganizationRow): Organization {
     guestCount: r.guest_count,
     packageId: r.package_id ?? "",
     revenue: Number(r.total_price ?? 0),
-    status: r.status as Organization["status"],
+    status: uiStatus,
     notes: r.notes ?? "",
     paymentReceived: 0,
     paymentTotal: Number(r.total_price ?? 0),
