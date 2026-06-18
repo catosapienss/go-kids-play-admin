@@ -11,6 +11,7 @@ import { BirthdayPackageManager } from "@/components/dogum-gunleri/package-manag
 import { NewOrganizationModal } from "@/components/dogum-gunleri/new-organization-modal"
 import { listOrganizations, type OrganizationRow } from "@/lib/services/organizations.service"
 import type { Organization, OrgStatus } from "@/types/organizasyon"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
 const STATUS_FILTERS: { key: OrgStatus | "all"; label: string; active: string }[] = [
@@ -76,9 +77,14 @@ export default function DogumGunleriPage() {
   const reload = useCallback(async () => {
     try {
       const rows = await listOrganizations()
+      // eslint-disable-next-line no-console
+      console.log("[/dogum-gunleri] listOrganizations →", rows.length, "row(s)", rows)
       setOrganizations(rows.map(rowToOrganization))
     } catch (e) {
-      console.warn("[/dogum-gunleri] load failed", e)
+      // eslint-disable-next-line no-console
+      console.error("[/dogum-gunleri] load failed", e)
+      const msg = e instanceof Error ? e.message : String(e)
+      toast.error("Organizasyonlar yüklenemedi: " + msg.slice(0, 150))
     }
   }, [])
 
