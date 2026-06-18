@@ -121,10 +121,26 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
 
   const canSwitch = !!user && isSuperAdmin(user.role)
 
+  // ── Cross-branch read scope ────────────────────────────────────────────────
+  //
+  // The `isSuperAdmin` flag on BranchScope is the "no branch picked → see all
+  // data" gate consumed by withBranchScope(). It was originally restricted to
+  // super_admin, but that caused the dashboard to apply
+  // `.eq("branch_id", "__no_branch__")` for any admin/manager whose
+  // profiles.branch_id is null — wiping out KPIs even when sessions/payments
+  // existed (Live Operations panel kept working because session-store does
+  // NOT go through withBranchScope).
+  //
+  // Admin and manager get cross-branch read access here as well; RLS still
+  // gates writes server-side.
+  const seeAllBranches = !!user && (
+    user.role === "super_admin" || user.role === "admin" || user.role === "manager"
+  )
+
   const scope = useMemo<BranchScope>(() => ({
     branchId:     activeBranchId,
-    isSuperAdmin: canSwitch,
-  }), [activeBranchId, canSwitch])
+    isSuperAdmin: seeAllBranches,
+  }), [activeBranchId, seeAllBranches])
 
   const value = useMemo<BranchContextValue>(() => ({
     branches,
