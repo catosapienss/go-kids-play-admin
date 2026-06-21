@@ -8,7 +8,7 @@ import { MiniCalendar } from "@/components/dogum-gunleri/mini-calendar"
 import { UpcomingEvents } from "@/components/dogum-gunleri/upcoming-events"
 import { OrgList } from "@/components/dogum-gunleri/org-list"
 import { BirthdayPackageManager } from "@/components/dogum-gunleri/package-manager"
-import { NewOrganizationModal } from "@/components/dogum-gunleri/new-organization-modal"
+import { NewOrganizationInline } from "@/components/dogum-gunleri/new-organization-inline"
 import { listOrganizations, type OrganizationRow } from "@/lib/services/organizations.service"
 import type { Organization, OrgStatus } from "@/types/organizasyon"
 import { toast } from "sonner"
@@ -71,7 +71,6 @@ export default function DogumGunleriPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<OrgStatus | "all">("all")
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
-  const [showNew, setShowNew] = useState(false)
   const [organizations, setOrganizations] = useState<Organization[]>([])
 
   const reload = useCallback(async () => {
@@ -116,6 +115,8 @@ export default function DogumGunleriPage() {
 
   return (
     <MainLayout title="Doğum Günleri" subtitle="Organizasyon & Etkinlik Yönetimi">
+      <NewOrganizationInline onCreated={() => void reload()} />
+
       <BirthdayPackageManager />
 
       <OrgStatsBar orgs={organizations} />
@@ -160,21 +161,9 @@ export default function DogumGunleriPage() {
               </button>
             )}
 
-            <button
-              onClick={() => setShowNew(true)}
-              className="ml-auto flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm shadow-violet-500/20"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Yeni Organizasyon</span>
-            </button>
+            {/* Old modal button replaced by NewOrganizationInline at the top
+                of the page — modal stacking context was hiding it. */}
           </div>
-
-          {showNew && (
-            <NewOrganizationModal
-              onClose={() => setShowNew(false)}
-              onCreated={() => void reload()}
-            />
-          )}
 
           {/* Status filters */}
           <div className="flex items-center gap-1.5 flex-wrap mb-4">

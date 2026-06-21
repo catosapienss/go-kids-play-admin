@@ -39,7 +39,7 @@ interface AccountRow {
 
 const MODULE_ORDER: ModuleKey[] = [
   "dashboard", "customers", "memberships", "wallet", "birthdays",
-  "reports", "finance", "staff", "settings", "tv",
+  "reports", "finance", "retail", "staff", "settings", "tv",
 ]
 
 const ROLE_OPTIONS: UserRole[] = ["super_admin", "admin", "manager", "staff"]
