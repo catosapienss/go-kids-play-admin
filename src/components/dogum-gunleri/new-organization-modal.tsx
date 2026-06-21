@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { X, Cake, Loader2, Check, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import { createOrganization } from "@/lib/services/organizations.service"
@@ -90,7 +91,13 @@ export function NewOrganizationModal({ onClose, onCreated }: Props) {
     }
   }
 
-  return (
+  // Render via Portal into <body> so any parent stacking context (transform,
+  // overflow, z-index) cannot accidentally hide the modal — early bug had the
+  // modal opening at z-index below the sidebar shell, making the click look
+  // like a no-op.
+  if (typeof document === "undefined") return null
+
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -213,7 +220,8 @@ export function NewOrganizationModal({ onClose, onCreated }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

@@ -98,8 +98,17 @@ export async function getDashboardMetrics(scope?: BranchScope): Promise<Dashboar
   const supabase = createClient()
   const today = startOfToday()
 
-  const [sessionsRes, paymentsRes, walletTxsRes, refundsRes] = await Promise.all([
-    s(supabase.from("sessions").select("id, status, duration_minutes, end_time, paused_remaining_seconds, created_at, branch_id"), scope)
+  // ── Split the sessions query in two ────────────────────────────────────────
+  // • "Aktif Oyun" is a live count of all sessions whose status is active or
+  //   paused — date is irrelevant, a session started yesterday that is still
+  //   running must still show here.
+  // • "Bugün Giriş" is the number of sessions that *started* today.
+  // Previously a single `.gte("created_at", today)` query drove both, which
+  // hid overnight sessions from the live count.
+  const [activeRes, todaySessionsRes, paymentsRes, walletTxsRes, refundsRes] = await Promise.all([
+    s(supabase.from("sessions").select("id, status, duration_minutes, end_time, paused_remaining_seconds, branch_id"), scope)
+      .in("status", ["active", "paused"]),
+    s(supabase.from("sessions").select("id, created_at, branch_id"), scope)
       .gte("created_at", today.toISOString()),
     s(supabase.from("payments").select("cash_amount, card_amount, wallet_amount, total_amount, branch_id"), scope)
       .gte("created_at", today.toISOString()),
@@ -109,13 +118,13 @@ export async function getDashboardMetrics(scope?: BranchScope): Promise<Dashboar
       .gte("created_at", today.toISOString()),
   ])
 
-  const sessions = sessionsRes.data ?? []
+  const liveSessions = activeRes.data ?? []
+  const todaySessions = todaySessionsRes.data ?? []
   const payments = paymentsRes.data ?? []
   const walletTxs = walletTxsRes.data ?? []
   const refunds = refundsRes.data ?? []
 
   const now = Date.now()
-  const isActiveOrPaused = (s: { status: string }) => s.status === "active" || s.status === "paused"
   const remainingSec = (s: { status: string; end_time: string | null; paused_remaining_seconds: number | null; duration_minutes: number }) => {
     if (s.duration_minutes === 0) return 999999
     if (s.status === "paused") return s.paused_remaining_seconds ?? 0
@@ -123,9 +132,9 @@ export async function getDashboardMetrics(scope?: BranchScope): Promise<Dashboar
     return Math.max(0, Math.floor((new Date(s.end_time).getTime() - now) / 1000))
   }
 
-  const activeSessions = sessions.filter(isActiveOrPaused).length
-  const expiringSoon = sessions.filter((s) => isActiveOrPaused(s) && s.duration_minutes > 0 && remainingSec(s) <= 600).length
-  const unlimitedActive = sessions.filter((s) => isActiveOrPaused(s) && s.duration_minutes === 0).length
+  const activeSessions = liveSessions.length
+  const expiringSoon = liveSessions.filter((s) => s.duration_minutes > 0 && remainingSec(s) <= 600).length
+  const unlimitedActive = liveSessions.filter((s) => s.duration_minutes === 0).length
 
   const totalCash = payments.reduce((s, p) => s + Number(p.cash_amount), 0)
   const totalCard = payments.reduce((s, p) => s + Number(p.card_amount), 0)
@@ -135,7 +144,7 @@ export async function getDashboardMetrics(scope?: BranchScope): Promise<Dashboar
   const totalRefunded = refunds.reduce((s, r) => s + Number(r.refund_amount), 0)
 
   return {
-    todayEntries: sessions.length,
+    todayEntries: todaySessions.length,
     activeSessions,
     expiringSoon,
     unlimitedActive,
