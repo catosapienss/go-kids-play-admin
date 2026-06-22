@@ -2,8 +2,18 @@
 
 import { Trash2, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { DURATION_OPTIONS, DURATION_PRICES, DURATION_LABELS, DURATION_COLORS } from "@/lib/pos-data"
-import type { ChildEntry } from "@/types/hizli-kayit"
+import { DURATION_COLORS } from "@/lib/pos-data"
+import { useSettingsSection } from "@/lib/settings/settings-store"
+import type { ChildEntry, DurationOption } from "@/types/hizli-kayit"
+
+// Map a settings package durationMin (any positive int, 0 = unlimited) to the
+// closed DurationOption enum the session-creation pipeline expects.
+function toDurationOption(durationMin: number): DurationOption {
+  if (durationMin <= 0)  return "free"
+  if (durationMin <= 30) return 30
+  if (durationMin <= 60) return 60
+  return 90
+}
 
 interface ChildCardProps {
   child: ChildEntry
@@ -24,6 +34,8 @@ const CARD_COLORS = [
 
 export function ChildCard({ child, isSelected, onSelect, onUpdate, onRemove, index }: ChildCardProps) {
   const colorClass = CARD_COLORS[index % CARD_COLORS.length]
+  const packages = useSettingsSection("packages")
+  const activeItems = packages.items.filter((p) => p.active)
 
   return (
     <div
@@ -73,15 +85,16 @@ export function ChildCard({ child, isSelected, onSelect, onUpdate, onRemove, ind
       {/* Duration selector */}
       <div className="bg-white dark:bg-slate-900 p-3">
         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Süre Seç</p>
-        <div className="grid grid-cols-4 gap-1.5">
-          {DURATION_OPTIONS.map((duration) => {
-            const isActive = child.duration === duration
+        <div className={cn("grid gap-1.5", activeItems.length <= 4 ? "grid-cols-4" : "grid-cols-2 sm:grid-cols-3")}>
+          {activeItems.map((pkg) => {
+            const duration = toDurationOption(pkg.durationMin)
+            const isActive = child.duration === duration && child.price === pkg.price
             return (
               <button
-                key={duration}
+                key={pkg.id}
                 onClick={(e) => {
                   e.stopPropagation()
-                  onUpdate({ duration, price: DURATION_PRICES[duration] })
+                  onUpdate({ duration, price: pkg.price })
                 }}
                 className={cn(
                   "py-2 rounded-xl text-xs font-semibold transition-all duration-150 flex flex-col items-center gap-0.5",
@@ -90,9 +103,9 @@ export function ChildCard({ child, isSelected, onSelect, onUpdate, onRemove, ind
                     : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
                 )}
               >
-                <span>{DURATION_LABELS[duration]}</span>
+                <span>{pkg.label}</span>
                 <span className={cn("text-[10px] font-bold", isActive ? "text-white/80" : "text-slate-500")}>
-                  ₺{DURATION_PRICES[duration]}
+                  ₺{pkg.price}
                 </span>
               </button>
             )
