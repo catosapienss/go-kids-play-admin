@@ -87,3 +87,67 @@ export async function deleteOrganization(id: string): Promise<void> {
   const { error } = await supabase.from("organizations").delete().eq("id", id)
   if (error) throw error
 }
+
+export async function getOrganization(id: string): Promise<OrganizationRow | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("organizations")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle()
+  if (error) throw error
+  return (data as OrganizationRow | null) ?? null
+}
+
+// ─── Organization payments ───────────────────────────────────────────────────
+
+export type OrgPaymentMethod = "cash" | "card" | "transfer" | "wallet"
+export type OrgPaymentKind   = "deposit" | "installment" | "full" | "refund"
+
+export interface OrgPaymentRow {
+  id: string
+  organization_id: string
+  amount: number
+  method: OrgPaymentMethod
+  kind: OrgPaymentKind
+  note: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export async function listOrgPayments(orgId: string): Promise<OrgPaymentRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("organization_payments")
+    .select("*")
+    .eq("organization_id", orgId)
+    .order("created_at", { ascending: false })
+  if (error) throw error
+  return (data ?? []) as OrgPaymentRow[]
+}
+
+export async function addOrgPayment(input: {
+  organization_id: string
+  amount: number
+  method: OrgPaymentMethod
+  kind?: OrgPaymentKind
+  note?: string | null
+}): Promise<OrgPaymentRow> {
+  const supabase = createClient()
+  const { data: session } = await supabase.auth.getSession()
+  const userId = session?.session?.user?.id ?? null
+  const { data, error } = await supabase
+    .from("organization_payments")
+    .insert({
+      organization_id: input.organization_id,
+      amount:          input.amount,
+      method:          input.method,
+      kind:            input.kind ?? "deposit",
+      note:            input.note ?? null,
+      created_by:      userId,
+    })
+    .select("*")
+    .single()
+  if (error) throw error
+  return data as OrgPaymentRow
+}
