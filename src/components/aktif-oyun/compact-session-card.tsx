@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { getStatus, formatTime } from "@/types/aktif-oyun"
 import type { ActiveSession } from "@/types/aktif-oyun"
 import { Plus, LogOut, Pause, Play, Sparkles } from "lucide-react"
+import { ReprintLabelsButton } from "./reprint-labels-button"
 
 // ─── Compact / High-Density Session Card ─────────────────────────────────────
 //
@@ -152,6 +153,7 @@ export function CompactSessionCard({
           icon={LogOut}
           onClick={() => onExit(session.id)}
         />
+        <ReprintLabelsButton session={session} />
       </div>
     </div>
   )

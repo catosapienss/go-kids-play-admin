@@ -6,6 +6,7 @@ import { getStatus, formatTime, elapsedMinutes } from "@/types/aktif-oyun"
 import type { ActiveSession } from "@/types/aktif-oyun"
 import { useState } from "react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { ReprintLabelsButton } from "./reprint-labels-button"
 
 interface ActiveChildCardProps {
   session: ActiveSession
@@ -212,6 +213,9 @@ export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume
             <LogOut className="w-3 h-3" />
             Çıkış
           </button>
+
+          {/* Reprint labels */}
+          <ReprintLabelsButton session={session} />
 
           {/* Detail toggle */}
           <button
