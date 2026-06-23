@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CheckCircle2, X, Baby, Clock, Copy, KeyRound, Sparkles } from "lucide-react"
+import { CheckCircle2, X, Baby, Clock, Copy, KeyRound, Printer } from "lucide-react"
 import { toast } from "sonner"
 import type { ChildEntry, Customer } from "@/types/hizli-kayit"
 import { DURATION_LABELS } from "@/lib/pos-data"
@@ -9,6 +9,7 @@ import {
   getOrCreateEntryCode,
   generateClientSideCode,
 } from "@/lib/services/entry-code.service"
+import { PrintButtons } from "./print-buttons"
 
 interface SuccessModalProps {
   customer: Customer
@@ -134,20 +135,26 @@ export function SuccessModal({ customer, kidsList, total, onClose }: SuccessModa
             </span>
           </div>
 
+          {/* Label printing — XPrinter XP-470B */}
+          <div className="pt-1">
+            <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1.5">
+              <Printer className="w-3 h-3" />
+              Etiket Yazdır
+            </div>
+            <PrintButtons
+              customer={customer}
+              kidsList={kidsList}
+              sessionNumber={code || "—"}
+            />
+          </div>
+
           {/* Actions */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="pt-1">
             <button
               onClick={onClose}
-              className="min-h-[44px] py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              className="w-full min-h-[44px] py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               Yeni Kayıt
-            </button>
-            <button
-              onClick={() => window.print()}
-              className="min-h-[44px] py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Fiş yazdır
             </button>
           </div>
         </div>

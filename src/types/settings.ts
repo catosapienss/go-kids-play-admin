@@ -13,6 +13,7 @@ export interface AppSettings {
   payments:       PaymentsSettings
   notifications:  NotificationsSettings
   staff:          StaffSettings
+  printer:        PrinterSettings
 }
 
 // ─── Section shapes ──────────────────────────────────────────────────────────
@@ -84,6 +85,13 @@ export interface StaffSettings {
   cashCloseRequiresManager: boolean
 }
 
+export interface PrinterSettings {
+  printerName:      string   // human label for the print dialog; e.g. "XP-470B"
+  labelWidthMm:     number   // 60 default; XP-470B sweet spot 40–80mm
+  labelHeightMm:    number   // 40 default
+  autoPrintEnabled: boolean  // if true: auto-trigger Print Both after register
+}
+
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -141,12 +149,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
     refundRequiresManager:    false,
     cashCloseRequiresManager: true,
   },
+  printer: {
+    printerName:      "XP-470B",
+    labelWidthMm:     60,
+    labelHeightMm:    40,
+    autoPrintEnabled: false,
+  },
 }
 
 // ─── Section metadata for the UI ─────────────────────────────────────────────
 
 export type SettingsSection =
-  | "general" | "packages" | "operations" | "tv" | "payments" | "notifications" | "staff"
+  | "general" | "packages" | "operations" | "tv" | "payments" | "notifications" | "staff" | "printer"
 
 export const SECTION_LABEL: Record<SettingsSection, string> = {
   general:       "Genel",
@@ -156,6 +170,7 @@ export const SECTION_LABEL: Record<SettingsSection, string> = {
   payments:      "Ödeme",
   notifications: "Bildirim & Uyarı",
   staff:         "Personel",
+  printer:       "Yazıcı",
 }
 
 export const SECTION_HINT: Record<SettingsSection, string> = {
@@ -166,4 +181,5 @@ export const SECTION_HINT: Record<SettingsSection, string> = {
   payments:      "Split payment, cüzdan, bonus, POS",
   notifications: "Süre bitiş eşikleri, ses, uyarı",
   staff:         "Otomatik kilit, vardiya kuralları",
+  printer:       "XP-470B etiket boyutu, otomatik yazdırma",
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import {
-  Settings as SettingsIcon, Package, ShieldCheck, Tv, CreditCard, Bell, Users,
+  Settings as SettingsIcon, Package, ShieldCheck, Tv, CreditCard, Bell, Users, Printer,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -13,7 +13,7 @@ import {
 } from "@/types/settings"
 import {
   SectionGeneral, SectionPackages, SectionOperations, SectionTv,
-  SectionPayments, SectionNotifications, SectionStaff,
+  SectionPayments, SectionNotifications, SectionStaff, SectionPrinter,
 } from "@/components/ayarlar/sections"
 
 // ─── /ayarlar — Settings ─────────────────────────────────────────────────────
@@ -33,9 +33,10 @@ const TAB_ICONS: Record<SettingsSection, LucideIcon> = {
   payments:      CreditCard,
   notifications: Bell,
   staff:         Users,
+  printer:       Printer,
 }
 
-const TABS: SettingsSection[] = ["general", "packages", "operations", "tv", "payments", "notifications", "staff"]
+const TABS: SettingsSection[] = ["general", "packages", "operations", "tv", "payments", "notifications", "staff", "printer"]
 
 export default function AyarlarPage() {
   const [active, setActive] = useState<SettingsSection>("general")
@@ -108,6 +109,7 @@ export default function AyarlarPage() {
               {active === "payments"      && <SectionPayments />}
               {active === "notifications" && <SectionNotifications />}
               {active === "staff"         && <SectionStaff />}
+              {active === "printer"       && <SectionPrinter />}
             </div>
           </main>
         </div>

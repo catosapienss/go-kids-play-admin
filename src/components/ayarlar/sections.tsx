@@ -393,3 +393,48 @@ export function SectionStaff() {
     </>
   )
 }
+
+// ─── Section: Yazıcı ─────────────────────────────────────────────────────────
+
+export function SectionPrinter() {
+  const { settings, update, replace } = useSettings()
+  const s = settings.printer
+  const [saved, flag] = useSavedFlag()
+  const up = (patch: Partial<typeof s>) => { update("printer", patch); flag() }
+
+  return (
+    <>
+      <SectionHeader
+        title="Yazıcı"
+        hint="XPrinter XP-470B etiket boyutu ve otomatik yazdırma"
+      />
+
+      <FieldGroup title="Cihaz">
+        <Field label="Yazıcı adı" hint="Sistem yazdırma diyaloğunda görünen ad — XP-470B'yi seçeceksin">
+          <TextInput value={s.printerName} onChange={(v) => up({ printerName: v })} placeholder="XP-470B" />
+        </Field>
+      </FieldGroup>
+
+      <FieldGroup title="Etiket Boyutu">
+        <Field label="Genişlik" inline hint="Termal etiket genişliği (mm)">
+          <NumberInput value={s.labelWidthMm} onChange={(v) => up({ labelWidthMm: v })} min={20} max={120} step={1} suffix="mm" />
+        </Field>
+        <Field label="Yükseklik" inline hint="Termal etiket yüksekliği (mm)">
+          <NumberInput value={s.labelHeightMm} onChange={(v) => up({ labelHeightMm: v })} min={15} max={120} step={1} suffix="mm" />
+        </Field>
+      </FieldGroup>
+
+      <FieldGroup title="Davranış">
+        <Field
+          label="Kayıttan sonra otomatik yazdır"
+          inline
+          hint="Açıksa: hızlı kayıt başarılı olur olmaz çocuk + veli etiketlerini yazdırır"
+        >
+          <Toggle checked={s.autoPrintEnabled} onChange={(v) => up({ autoPrintEnabled: v })} />
+        </Field>
+      </FieldGroup>
+
+      <SaveBar saved={saved} onReset={() => replace("printer", DEFAULT_SETTINGS.printer)} />
+    </>
+  )
+}
