@@ -122,6 +122,42 @@ export async function getAllWalletSummaries(): Promise<WalletSummary[]> {
 
 // ─── Session Extension ────────────────────────────────────────────────────────
 
+/**
+ * After the extension RPC succeeds, mirror the cash/card amount into the
+ * `payments` table so it lands in the same reporting pipeline as ordinary
+ * Quick Register sales (daily revenue, end-of-day reconciliation, ciro).
+ *
+ * Wallet payments are NOT mirrored — the extension RPC already deducts the
+ * parent's wallet AND writes a wallet_transactions row. Counting that money
+ * a second time in `payments` would inflate revenue.
+ *
+ * "free" payments (comped extensions) write nothing — there is no revenue
+ * to mirror.
+ */
+async function mirrorExtensionPayment(input: SessionExtensionInput): Promise<void> {
+  if (!input.paymentAmount || input.paymentAmount <= 0)             return
+  if (input.paymentType === "wallet" || input.paymentType === "free") return
+
+  const cash = input.paymentType === "cash" ? input.paymentAmount : 0
+  const card = input.paymentType === "card" ? input.paymentAmount : 0
+  if (cash === 0 && card === 0) return
+
+  const supabase = createClient()
+  // Best-effort: an error here must not roll back the extension itself,
+  // which has already been committed by the RPC.
+  const { error } = await supabase.from("payments").insert({
+    session_id:    input.sessionId,
+    cash_amount:   cash,
+    card_amount:   card,
+    wallet_amount: 0,
+    total_amount:  input.paymentAmount,
+  })
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn("[finance] extension payment mirror failed", error.message)
+  }
+}
+
 export async function extendSessionWithPayment(input: SessionExtensionInput): Promise<void> {
   await safeFinanceAction(
     `session.extend:${input.sessionId}:${input.minutes}`,
@@ -136,11 +172,13 @@ export async function extendSessionWithPayment(input: SessionExtensionInput): Pr
         p_created_by:    input.createdBy ?? null,
       })
       if (error) throw error
+      // Mirror to payments so the extension shows up in revenue/end-of-day.
+      await mirrorExtensionPayment(input)
       void recordAudit({
         action: "session.extend",
         entityType: "session",
         entityId: input.sessionId,
-        meta: { minutes: input.minutes, amount: input.paymentAmount, method: input.paymentType },
+        meta: { minutes: input.minutes, amount: input.paymentAmount, method: input.paymentType, kind: "session_extension" },
       })
     },
   )
@@ -159,11 +197,12 @@ export async function convertToUnlimited(input: SessionExtensionInput): Promise<
         p_created_by:     input.createdBy ?? null,
       })
       if (error) throw error
+      await mirrorExtensionPayment(input)
       void recordAudit({
         action: "session.convert_unlimited",
         entityType: "session",
         entityId: input.sessionId,
-        meta: { amount: input.paymentAmount, method: input.paymentType },
+        meta: { amount: input.paymentAmount, method: input.paymentType, kind: "session_extension" },
       })
     },
   )

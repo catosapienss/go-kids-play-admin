@@ -438,3 +438,38 @@ export function SectionPrinter() {
     </>
   )
 }
+
+// ─── Section: Süre Uzatma Fiyatları ─────────────────────────────────────────
+
+export function SectionPricing() {
+  const { settings, update, replace } = useSettings()
+  const s = settings.pricing
+  const [saved, flag] = useSavedFlag()
+  const up = (patch: Partial<typeof s>) => { update("pricing", patch); flag() }
+
+  return (
+    <>
+      <SectionHeader
+        title="Süre Uzatma Fiyatları"
+        hint="Aktif oyun ekranında 'Süre Uzat' modal'ında görünen tarifeler"
+      />
+
+      <FieldGroup title="Uzatma Seçenekleri">
+        <Field label="+30 dakika" inline hint="Mevcut paketin üstüne 30 dakika eklenir">
+          <NumberInput value={s.extension30Min} onChange={(v) => up({ extension30Min: v })}
+                       min={0} max={5000} step={5} suffix="₺" />
+        </Field>
+        <Field label="+60 dakika" inline hint="Mevcut paketin üstüne 60 dakika eklenir">
+          <NumberInput value={s.extension60Min} onChange={(v) => up({ extension60Min: v })}
+                       min={0} max={5000} step={5} suffix="₺" />
+        </Field>
+        <Field label="Sınırsıza yükselt" inline hint="Mevcut oturumu sınırsız pakete dönüştürür">
+          <NumberInput value={s.unlimitedUpgrade} onChange={(v) => up({ unlimitedUpgrade: v })}
+                       min={0} max={5000} step={5} suffix="₺" />
+        </Field>
+      </FieldGroup>
+
+      <SaveBar saved={saved} onReset={() => replace("pricing", DEFAULT_SETTINGS.pricing)} />
+    </>
+  )
+}

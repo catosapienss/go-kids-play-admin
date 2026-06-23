@@ -46,6 +46,7 @@ function loadFromStorage(): AppSettings {
       notifications: { ...DEFAULT_SETTINGS.notifications, ...(parsed.notifications ?? {}) },
       staff:         { ...DEFAULT_SETTINGS.staff,         ...(parsed.staff         ?? {}) },
       printer:       { ...DEFAULT_SETTINGS.printer,       ...(parsed.printer       ?? {}) },
+      pricing:       { ...DEFAULT_SETTINGS.pricing,       ...(parsed.pricing       ?? {}) },
     }
   } catch {
     return DEFAULT_SETTINGS

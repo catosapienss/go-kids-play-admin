@@ -84,11 +84,13 @@ export function computeBonus(amount: number): number {
   return tier?.bonus ?? 0
 }
 
-// Extension price map — keys: 30 | 60 | 0 (0 = Sınırsız/unlimited)
+// Extension price map — keys: 30 | 60 | 0 (0 = Sınırsız/unlimited).
+// These are the SSR-safe defaults; the modal hydrates live values from
+// the operator-editable `pricing` section of settings.
 export const EXTENSION_PRICES: Record<number, number> = {
-  30:  100,
-  60:  150,
-  0:   200, // Sınırsız upgrade price
+  30:  175,
+  60:  350,
+  0:   400, // Sınırsız upgrade
 }
 
 export const UNLIMITED_MINUTES = 0 // sentinel for "convert to unlimited"

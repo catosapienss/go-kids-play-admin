@@ -14,6 +14,7 @@ export interface AppSettings {
   notifications:  NotificationsSettings
   staff:          StaffSettings
   printer:        PrinterSettings
+  pricing:        PricingSettings
 }
 
 // ─── Section shapes ──────────────────────────────────────────────────────────
@@ -92,6 +93,12 @@ export interface PrinterSettings {
   autoPrintEnabled: boolean  // if true: auto-trigger Print Both after register
 }
 
+export interface PricingSettings {
+  extension30Min:  number   // +30 dk extension price (₺)
+  extension60Min:  number   // +60 dk extension price (₺)
+  unlimitedUpgrade: number  // convert-to-unlimited upgrade price (₺)
+}
+
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -155,12 +162,17 @@ export const DEFAULT_SETTINGS: AppSettings = {
     labelHeightMm:    40,
     autoPrintEnabled: false,
   },
+  pricing: {
+    extension30Min:   175,
+    extension60Min:   350,
+    unlimitedUpgrade: 400,
+  },
 }
 
 // ─── Section metadata for the UI ─────────────────────────────────────────────
 
 export type SettingsSection =
-  | "general" | "packages" | "operations" | "tv" | "payments" | "notifications" | "staff" | "printer"
+  | "general" | "packages" | "operations" | "tv" | "payments" | "notifications" | "staff" | "printer" | "pricing"
 
 export const SECTION_LABEL: Record<SettingsSection, string> = {
   general:       "Genel",
@@ -171,6 +183,7 @@ export const SECTION_LABEL: Record<SettingsSection, string> = {
   notifications: "Bildirim & Uyarı",
   staff:         "Personel",
   printer:       "Yazıcı",
+  pricing:       "Süre Uzatma Fiyatları",
 }
 
 export const SECTION_HINT: Record<SettingsSection, string> = {
@@ -182,4 +195,5 @@ export const SECTION_HINT: Record<SettingsSection, string> = {
   notifications: "Süre bitiş eşikleri, ses, uyarı",
   staff:         "Otomatik kilit, vardiya kuralları",
   printer:       "XP-470B etiket boyutu, otomatik yazdırma",
+  pricing:       "+30 / +60 dk ve sınırsız yükseltme tarifesi",
 }

@@ -8,8 +8,9 @@ import { formatTime } from "@/types/aktif-oyun"
 import { extendSessionWithPayment, convertToUnlimited, getWalletBalance } from "@/lib/services/finance.service"
 import { useAuth } from "@/contexts/auth-context"
 import { useSessionStore } from "@/lib/stores/session-store"
-import { EXTENSION_PRICES, UNLIMITED_MINUTES } from "@/types/finance"
+import { UNLIMITED_MINUTES } from "@/types/finance"
 import type { PaymentMethod } from "@/types/finance"
+import { useSettingsSection } from "@/lib/settings/settings-store"
 import { toast } from "sonner"
 
 interface ExtendTimeModalProps {
@@ -17,29 +18,13 @@ interface ExtendTimeModalProps {
   onClose: () => void
 }
 
-const EXTEND_OPTIONS = [
-  {
-    minutes: 30,
-    label: "+30 dk",
-    sublabel: `₺${EXTENSION_PRICES[30]}`,
-    color: "from-sky-500 to-blue-600",
-    hoverRing: "ring-blue-400/40",
-  },
-  {
-    minutes: 60,
-    label: "+60 dk",
-    sublabel: `₺${EXTENSION_PRICES[60]}`,
-    color: "from-violet-500 to-purple-600",
-    hoverRing: "ring-violet-400/40",
-  },
-  {
-    minutes: UNLIMITED_MINUTES,
-    label: "Sınırsız",
-    sublabel: `₺${EXTENSION_PRICES[UNLIMITED_MINUTES]}`,
-    color: "from-emerald-500 to-teal-600",
-    hoverRing: "ring-emerald-400/40",
-  },
-] as const
+interface ExtendOption {
+  minutes:   number
+  label:     string
+  price:     number
+  color:     string
+  hoverRing: string
+}
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: React.ElementType }[] = [
   { value: "cash",   label: "Nakit",     icon: Banknote  },
@@ -51,14 +36,42 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: React.Elemen
 export function ExtendTimeModal({ session, onClose }: ExtendTimeModalProps) {
   const { user } = useAuth()
   const { extendEndTime } = useSessionStore()
+  const pricing = useSettingsSection("pricing")
   const [selectedMins, setSelectedMins] = useState<number | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
 
+  // Live prices from /ayarlar → Süre Uzatma Fiyatları. Settings is the source
+  // of truth; the EXTENSION_PRICES constant is only an SSR-safe fallback.
+  const EXTEND_OPTIONS: ExtendOption[] = [
+    {
+      minutes:   30,
+      label:     "+30 dk",
+      price:     pricing.extension30Min,
+      color:     "from-sky-500 to-blue-600",
+      hoverRing: "ring-blue-400/40",
+    },
+    {
+      minutes:   60,
+      label:     "+60 dk",
+      price:     pricing.extension60Min,
+      color:     "from-violet-500 to-purple-600",
+      hoverRing: "ring-violet-400/40",
+    },
+    {
+      minutes:   UNLIMITED_MINUTES,
+      label:     "Sınırsız",
+      price:     pricing.unlimitedUpgrade,
+      color:     "from-emerald-500 to-teal-600",
+      hoverRing: "ring-emerald-400/40",
+    },
+  ]
+
   const isUnlimited = selectedMins === UNLIMITED_MINUTES
-  const price = selectedMins !== null ? (EXTENSION_PRICES[selectedMins] ?? 0) : 0
+  const selectedOption = EXTEND_OPTIONS.find((o) => o.minutes === selectedMins) ?? null
+  const price = selectedOption?.price ?? 0
   const paymentAmount = paymentMethod === "free" ? 0 : price
   const walletInsufficient = paymentMethod === "wallet" && walletBalance !== null && walletBalance < paymentAmount
 
@@ -159,6 +172,7 @@ export function ExtendTimeModal({ session, onClose }: ExtendTimeModalProps) {
               <div className="grid grid-cols-3 gap-3">
                 {EXTEND_OPTIONS.map((opt) => {
                   const isSelected = selectedMins === opt.minutes
+                  const priceLabel = `₺${opt.price.toLocaleString("tr-TR")}`
                   return (
                     <button
                       key={opt.minutes}
@@ -174,7 +188,7 @@ export function ExtendTimeModal({ session, onClose }: ExtendTimeModalProps) {
                         <div className="flex flex-col items-center gap-1">
                           <span className={cn("text-xl font-bold", isSelected ? "text-white" : "text-slate-900 dark:text-white")}>∞</span>
                           <span className={cn("text-[10px] font-semibold", isSelected ? "text-white/80" : "text-slate-400")}>
-                            {opt.sublabel}
+                            {priceLabel}
                           </span>
                         </div>
                       ) : (
@@ -183,7 +197,7 @@ export function ExtendTimeModal({ session, onClose }: ExtendTimeModalProps) {
                             {opt.label}
                           </p>
                           <p className={cn("text-[10px] mt-0.5 font-semibold", isSelected ? "text-white/80" : "text-slate-400")}>
-                            {opt.sublabel}
+                            {priceLabel}
                           </p>
                         </>
                       )}
