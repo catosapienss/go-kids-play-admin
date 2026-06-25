@@ -1,10 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { X, Users, Baby } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { ChildEntry, DurationOption } from "@/types/hizli-kayit"
-import { useSettingsSection } from "@/lib/settings/settings-store"
+import type { ChildEntry } from "@/types/hizli-kayit"
 
 // ─── Fast Children Input — operational speed pass ───────────────────────────
 //
@@ -25,27 +24,16 @@ import { useSettingsSection } from "@/lib/settings/settings-store"
 interface Props {
   kidsList:        ChildEntry[]
   selectedChildId: string | null
-  total:           number
   onAdd:           (initialName?: string) => string         // returns new id
   onUpdate:        (id: string, updates: Partial<ChildEntry>) => void
   onRemove:        (id: string) => void
   onSelect:        (id: string) => void
 }
 
-function toDurationOption(durationMin: number): DurationOption {
-  if (durationMin <= 0)  return "free"
-  if (durationMin <= 30) return 30
-  if (durationMin <= 60) return 60
-  return 90
-}
-
 export function FastChildrenInput({
-  kidsList, selectedChildId, total,
+  kidsList, selectedChildId,
   onAdd, onUpdate, onRemove, onSelect,
 }: Props) {
-  const packages = useSettingsSection("packages")
-  const activeItems = useMemo(() => packages.items.filter((p) => p.active), [packages])
-
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -102,7 +90,7 @@ export function FastChildrenInput({
   }
 
   return (
-    <div className="flex flex-col h-full gap-3">
+    <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -116,7 +104,9 @@ export function FastChildrenInput({
         {kidsList.length > 0 && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 dark:bg-violet-500/10 rounded-xl">
             <Users className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-            <span className="text-sm font-bold text-violet-700 dark:text-violet-400">₺{total.toLocaleString("tr-TR")}</span>
+            <span className="text-sm font-bold text-violet-700 dark:text-violet-400">
+              {kidsList.length}
+            </span>
           </div>
         )}
       </div>
@@ -154,56 +144,11 @@ export function FastChildrenInput({
         </div>
       </div>
 
-      {/* Per-chip duration row */}
-      {kidsList.length > 0 ? (
-        <div className="flex-1 overflow-y-auto space-y-2.5 min-h-0 pr-0.5">
-          {kidsList.map((child) => (
-            <div key={child.id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{child.name || "—"}</p>
-                {child.price > 0 && (
-                  <span className="text-sm font-bold text-violet-700 dark:text-violet-400 tabular-nums">
-                    ₺{child.price.toLocaleString("tr-TR")}
-                  </span>
-                )}
-              </div>
-              <div className={cn(
-                "grid gap-1.5",
-                activeItems.length <= 4 ? "grid-cols-4" : "grid-cols-2 sm:grid-cols-3",
-              )}>
-                {activeItems.map((pkg) => {
-                  const dur = toDurationOption(pkg.durationMin)
-                  const active = child.duration === dur && child.price === pkg.price
-                  return (
-                    <button
-                      key={pkg.id}
-                      onClick={() => {
-                        onSelect(child.id)
-                        onUpdate(child.id, { duration: dur, price: pkg.price })
-                      }}
-                      className={cn(
-                        "rounded-lg py-2 text-[11px] font-bold transition-all flex flex-col items-center gap-0.5 border",
-                        active
-                          ? "bg-violet-600 border-violet-600 text-white shadow-sm shadow-violet-500/25"
-                          : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-violet-300",
-                      )}
-                    >
-                      <span>{pkg.label}</span>
-                      <span className={cn("text-[10px]", active ? "text-white/85" : "text-slate-500")}>
-                        ₺{pkg.price.toLocaleString("tr-TR")}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center text-slate-400">
-          <Baby className="w-10 h-10" />
+      {kidsList.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-2 py-6 text-center text-slate-400">
+          <Baby className="w-8 h-8" />
           <p className="text-xs">
-            Yukarıdaki kutuya çocukların adlarını yaz.<br/>
+            Çocuğun adını yaz.{" "}
             <span className="text-slate-500">Virgül ile birden fazla:</span> <strong>Arda,Elif,Can</strong>
           </p>
         </div>

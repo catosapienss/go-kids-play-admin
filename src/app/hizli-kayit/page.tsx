@@ -4,6 +4,8 @@ import { useState, useCallback } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { CustomerPanel } from "@/components/hizli-kayit/customer-panel"
 import { FastChildrenInput } from "@/components/hizli-kayit/fast-children-input"
+import { SessionDurationPicker } from "@/components/hizli-kayit/session-duration-picker"
+import { InlineRetailPanel } from "@/components/hizli-kayit/inline-retail-panel"
 import { PaymentPanel } from "@/components/hizli-kayit/payment-panel"
 import { ActionBar } from "@/components/hizli-kayit/action-bar"
 import { SuccessModal } from "@/components/hizli-kayit/success-modal"
@@ -11,10 +13,12 @@ import { EntryCodeLookup } from "@/components/hizli-kayit/entry-code-lookup"
 import type { LookupResult } from "@/lib/services/entry-code.service"
 import { ShiftClockCard } from "@/components/personel/shift-clock-card"
 import { createChild, createSession, createPayment, deductWallet } from "@/lib/services/pos.service"
+import { checkoutSale } from "@/lib/services/retail"
+import type { CartLine } from "@/types/retail"
 import { useAuth } from "@/contexts/auth-context"
 import { useSessionStore } from "@/lib/stores/session-store"
 import { toast } from "sonner"
-import type { Customer, ChildEntry, PaymentEntry, PaymentMethod } from "@/types/hizli-kayit"
+import type { Customer, ChildEntry, DurationOption, PaymentEntry, PaymentMethod } from "@/types/hizli-kayit"
 
 function makeId() {
   return Math.random().toString(36).slice(2, 9)
@@ -72,13 +76,20 @@ export default function HizliKayitPage() {
   const [payments, setPayments] = useState<PaymentEntry[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  // Section 3 — single duration applied to ALL children. Section 4 — retail.
+  const [globalDuration,  setGlobalDuration]  = useState<DurationOption | null>(null)
+  const [globalUnitPrice, setGlobalUnitPrice] = useState<number>(0)
+  const [retailCart,      setRetailCart]      = useState<CartLine[]>([])
 
-  const total = children.reduce((sum, c) => sum + c.price, 0)
+  const gameTotal   = children.length * globalUnitPrice
+  const retailTotal = retailCart.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
+  const total       = gameTotal + retailTotal
   const paid = payments.reduce((sum, p) => sum + p.amount, 0)
   const isReadyToStart =
     selectedCustomer !== null &&
     children.length > 0 &&
-    children.every((c) => c.name && c.duration) &&
+    globalDuration !== null &&
+    children.every((c) => c.name) &&
     total > 0 &&
     paid >= total
 
@@ -119,9 +130,21 @@ export default function HizliKayitPage() {
   const handleAddChild = useCallback((initialName?: string): string => {
     const child = makeChild()
     if (initialName) child.name = initialName
+    // Pre-apply the current shared duration / unit price so the new chip is
+    // immediately priced — staff doesn't need to revisit Section 3.
+    if (globalDuration !== null) {
+      child.duration = globalDuration
+      child.price    = globalUnitPrice
+    }
     setChildren((prev) => [...prev, child])
     setSelectedChildId(child.id)
     return child.id
+  }, [globalDuration, globalUnitPrice])
+
+  const handlePickGlobalDuration = useCallback((duration: DurationOption, unitPrice: number) => {
+    setGlobalDuration(duration)
+    setGlobalUnitPrice(unitPrice)
+    setChildren((prev) => prev.map((c) => ({ ...c, duration, price: unitPrice })))
   }, [])
 
   const handleSelectChild = useCallback((id: string) => {
@@ -218,6 +241,35 @@ export default function HizliKayitPage() {
         await deductWallet(selectedCustomer.id, totalWallet)
       }
 
+      // Retail cart — single sale row + line items, paid from the leftover
+      // (non-session) share of the payments. We split the retail share off
+      // proportionally: retailTotal / total of the cash + card buckets.
+      if (retailCart.length > 0 && retailTotal > 0) {
+        const cashTotal = payments.filter((p) => p.method === "cash").reduce((s, p) => s + p.amount, 0)
+        const cardTotal = payments.filter((p) => p.method === "card").reduce((s, p) => s + p.amount, 0)
+        const ratio     = total > 0 ? retailTotal / total : 1
+        const retailCash = round2(cashTotal * ratio)
+        const retailCard = round2(retailTotal - retailCash)
+        const method: "cash" | "card" | "split" =
+          retailCash > 0 && retailCard > 0 ? "split" :
+          retailCash > 0 ? "cash" : "card"
+        try {
+          await checkoutSale({
+            cashierId:     user?.id ?? "",
+            cart:          retailCart,
+            paymentMethod: method,
+            cashAmount:    retailCash,
+            cardAmount:    retailCard,
+            notes:         `Hızlı Kayıt · ${selectedCustomer.name}`,
+          })
+        } catch (e) {
+          // Retail failure must not roll back already-created sessions.
+          // eslint-disable-next-line no-console
+          console.warn("[hizli-kayit] retail checkout failed", e)
+          toast.warning("Oyun başladı ancak perakende kaydı oluşturulamadı")
+        }
+      }
+
       // Defensive: refetch the active-session store so the new row(s) show up
       // even if the realtime publication for `sessions` isn't configured. This
       // makes "registration → appears in Active Sessions" deterministic.
@@ -231,13 +283,16 @@ export default function HizliKayitPage() {
     } finally {
       setIsProcessing(false)
     }
-  }, [isReadyToStart, isProcessing, selectedCustomer, children, payments, user])
+  }, [isReadyToStart, isProcessing, selectedCustomer, children, payments, retailCart, retailTotal, total, user, refreshSessions])
 
   const handleClear = useCallback(() => {
     setSelectedCustomer(null)
     setChildren([])
     setSelectedChildId(null)
     setPayments([])
+    setGlobalDuration(null)
+    setGlobalUnitPrice(0)
+    setRetailCart([])
   }, [])
 
   const handleSuccessClose = useCallback(() => {
@@ -269,8 +324,8 @@ export default function HizliKayitPage() {
             />
           </div>
 
-          {/* MIDDLE: Children */}
-          <div className="border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 p-4 lg:p-5 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/30">
+          {/* MIDDLE: Children + Duration + Retail */}
+          <div className="border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 p-4 lg:p-5 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/30 space-y-3">
             <FastChildrenInput
               kidsList={children}
               selectedChildId={selectedChildId}
@@ -278,14 +333,22 @@ export default function HizliKayitPage() {
               onSelect={handleSelectChild}
               onUpdate={handleUpdateChild}
               onRemove={handleRemoveChild}
-              total={total}
             />
+            <SessionDurationPicker
+              duration={globalDuration}
+              unitPrice={globalUnitPrice}
+              childCount={children.length}
+              onChange={handlePickGlobalDuration}
+            />
+            <InlineRetailPanel cart={retailCart} onChange={setRetailCart} />
           </div>
 
           {/* RIGHT: Payment */}
           <div className="p-4 lg:p-5 overflow-y-auto">
             <PaymentPanel
               total={total}
+              gameTotal={gameTotal}
+              retailTotal={retailTotal}
               payments={payments}
               customer={selectedCustomer}
               onAddPayment={handleAddPayment}

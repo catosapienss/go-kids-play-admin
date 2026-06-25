@@ -7,6 +7,10 @@ import type { PaymentEntry, PaymentMethod, Customer } from "@/types/hizli-kayit"
 
 interface PaymentPanelProps {
   total: number
+  /** Optional split — when retail items are present, render the
+   *  Oyun / Perakende / Toplam breakdown above the payment grid. */
+  gameTotal?:   number
+  retailTotal?: number
   payments: PaymentEntry[]
   customer: Customer | null
   onAddPayment: (method: PaymentMethod, amount: number) => void
@@ -68,12 +72,15 @@ const METHOD_MAP = Object.fromEntries(PAYMENT_METHODS.map((m) => [m.method, m]))
 
 export function PaymentPanel({
   total,
+  gameTotal,
+  retailTotal,
   payments,
   customer,
   onAddPayment,
   onRemovePayment,
   onUpdatePayment,
 }: PaymentPanelProps) {
+  const showBreakdown = (gameTotal ?? 0) > 0 && (retailTotal ?? 0) > 0
   const [activeMethod, setActiveMethod] = useState<PaymentMethod | null>(null)
   const [inputAmount, setInputAmount] = useState("")
 
@@ -129,8 +136,23 @@ export function PaymentPanel({
           ? "bg-gradient-to-br from-slate-800 to-slate-900 dark:from-slate-800 dark:to-slate-900 text-white"
           : "bg-slate-100 dark:bg-slate-800"
       )}>
+        {showBreakdown && (
+          <div className={cn("mb-3 space-y-1 text-xs", total > 0 ? "text-white/85" : "text-slate-500")}>
+            <div className="flex items-center justify-between">
+              <span>Oyun</span>
+              <span className="font-semibold tabular-nums">₺{(gameTotal ?? 0).toLocaleString("tr-TR")}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Perakende</span>
+              <span className="font-semibold tabular-nums">₺{(retailTotal ?? 0).toLocaleString("tr-TR")}</span>
+            </div>
+            <div className="h-px bg-white/15" />
+          </div>
+        )}
         <div className="flex items-center justify-between mb-3">
-          <span className={cn("text-xs font-medium", total > 0 ? "text-white/70" : "text-slate-500")}>Toplam Tutar</span>
+          <span className={cn("text-xs font-medium", total > 0 ? "text-white/70" : "text-slate-500")}>
+            {showBreakdown ? "Genel Toplam" : "Toplam Tutar"}
+          </span>
           <span className={cn("text-2xl font-bold tracking-tight", total > 0 ? "text-white" : "text-slate-400")}>
             ₺{total.toLocaleString("tr-TR")}
           </span>
