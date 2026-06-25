@@ -4,9 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Printer, User, Users, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { useSettingsSection } from "@/lib/settings/settings-store"
+import { useSettings, useSettingsSection } from "@/lib/settings/settings-store"
 import type { ChildEntry, Customer } from "@/types/hizli-kayit"
-import { DURATION_LABELS } from "@/lib/pos-data"
 import {
   printLabels, type LabelJob, type ChildLabelData, type ParentLabelData,
 } from "@/lib/print/labels"
@@ -15,6 +14,11 @@ interface Props {
   customer:      Customer
   kidsList:      ChildEntry[]
   sessionNumber: string
+}
+
+function durationLabel(d: ChildEntry["duration"]): string {
+  if (d === "free" || d == null) return "Sınırsız"
+  return `${d} Dakika`
 }
 
 // ─── Print Buttons ────────────────────────────────────────────────────────────
@@ -37,42 +41,47 @@ function formatHM(d: Date): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function buildChildJobs(customer: Customer, kids: ChildEntry[], sessionNumber: string): LabelJob[] {
+function buildChildJobs(kids: ChildEntry[]): LabelJob[] {
   const now = new Date()
   return kids.map<LabelJob>((child) => {
     const isFree = child.duration === "free" || child.duration == null
     const minutes = typeof child.duration === "number" ? child.duration : 0
     const end = isFree ? null : new Date(now.getTime() + minutes * 60_000)
     const data: ChildLabelData = {
-      childName:     child.name || "—",
-      startTime:     formatHM(now),
-      endTime:       end ? formatHM(end) : "Sınırsız",
-      durationLabel: child.duration ? DURATION_LABELS[child.duration] : "—",
-      sessionNumber,
+      childName: (child.name || "—").trim(),
+      startTime: formatHM(now),
+      endTime:   end ? formatHM(end) : "Sınırsız",
     }
     return { kind: "child", data }
   })
 }
 
-function buildParentJobs(customer: Customer, kids: ChildEntry[], sessionNumber: string): LabelJob[] {
+function buildParentJobs(kids: ChildEntry[], companyPhone: string): LabelJob[] {
+  const now = new Date()
   return kids.map<LabelJob>((child) => {
+    const isFree = child.duration === "free" || child.duration == null
+    const minutes = typeof child.duration === "number" ? child.duration : 0
+    const end = isFree ? null : new Date(now.getTime() + minutes * 60_000)
     const data: ParentLabelData = {
-      childName:     child.name || "—",
-      parentName:    customer.name || "—",
-      parentPhone:   customer.phone || "—",
-      sessionNumber,
+      childName:     (child.name || "—").trim(),
+      companyPhone:  companyPhone || "—",
+      durationLabel: durationLabel(child.duration),
+      startTime:     formatHM(now),
+      endTime:       end ? formatHM(end) : "Sınırsız",
     }
     return { kind: "parent", data }
   })
 }
 
-export function PrintButtons({ customer, kidsList, sessionNumber }: Props) {
+export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _sessionNumber }: Props) {
   const printer = useSettingsSection("printer")
+  const { settings } = useSettings()
+  const companyPhone = settings.general.businessPhone
   const [busy, setBusy] = useState<"child" | "parent" | "both" | null>(null)
   const autoFiredRef = useRef(false)
 
-  const childJobs  = useMemo(() => buildChildJobs(customer, kidsList, sessionNumber),  [customer, kidsList, sessionNumber])
-  const parentJobs = useMemo(() => buildParentJobs(customer, kidsList, sessionNumber), [customer, kidsList, sessionNumber])
+  const childJobs  = useMemo(() => buildChildJobs(kidsList),                [kidsList])
+  const parentJobs = useMemo(() => buildParentJobs(kidsList, companyPhone), [kidsList, companyPhone])
 
   async function run(which: "child" | "parent" | "both") {
     if (busy) return

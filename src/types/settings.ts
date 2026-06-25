@@ -106,7 +106,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     branchName:      "Merkez Şube",
     businessName:    "Go Kids Play",
     businessAddress: "",
-    businessPhone:   "",
+    businessPhone:   "+90 532 542 5205",
     timezone:        "Europe/Istanbul",
     language:        "tr",
   },
@@ -160,7 +160,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     printerName:      "XP-470B",
     labelWidthMm:     60,
     labelHeightMm:    40,
-    autoPrintEnabled: false,
+    autoPrintEnabled: true,
   },
   pricing: {
     extension30Min:   175,

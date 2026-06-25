@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Printer, User, Users, Loader2, X, Clock } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { useSettingsSection } from "@/lib/settings/settings-store"
+import { useSettings, useSettingsSection } from "@/lib/settings/settings-store"
 import { printLabels, type LabelJob, type ChildLabelData, type ParentLabelData } from "@/lib/print/labels"
 import type { ActiveSession } from "@/types/aktif-oyun"
 
@@ -37,30 +37,29 @@ function saveAudit(map: AuditMap): void {
 // Map ActiveSession to label jobs using the *current* end-time math —
 // remainingSeconds is authoritative because it already accounts for pauses
 // and extensions. For unlimited sessions we print "Sınırsız" for end time.
-function buildJobs(session: ActiveSession): { child: LabelJob; parent: LabelJob } {
-  const sessionNumber = session.id.slice(0, 8).toUpperCase()
+function buildJobs(session: ActiveSession, companyPhone: string): { child: LabelJob; parent: LabelJob } {
   const isUnlimited =
     session.packageType === "Serbest" || session.totalMinutes === 0
   const now = new Date()
   const end = isUnlimited
     ? null
     : new Date(now.getTime() + Math.max(0, session.remainingSeconds) * 1000)
+  const endStr = end ? `${pad(end.getHours())}:${pad(end.getMinutes())}` : "Sınırsız"
   const durationLabel = isUnlimited
-    ? "Serbest"
-    : `${session.totalMinutes} dk`
+    ? "Sınırsız"
+    : `${session.totalMinutes} Dakika`
 
   const child: ChildLabelData = {
-    childName:     session.childName || "—",
-    startTime:     session.entryTime,
-    endTime:       end ? `${pad(end.getHours())}:${pad(end.getMinutes())}` : "Sınırsız",
-    durationLabel,
-    sessionNumber,
+    childName: (session.childName || "—").trim(),
+    startTime: session.entryTime,
+    endTime:   endStr,
   }
   const parent: ParentLabelData = {
-    childName:     session.childName || "—",
-    parentName:    session.parentName || "—",
-    parentPhone:   session.parentPhone || "—",
-    sessionNumber,
+    childName:     (session.childName || "—").trim(),
+    companyPhone:  companyPhone || "—",
+    durationLabel,
+    startTime:     session.entryTime,
+    endTime:       endStr,
   }
   return {
     child:  { kind: "child",  data: child },
@@ -85,12 +84,14 @@ interface Props { session: ActiveSession }
 
 export function ReprintLabelsButton({ session }: Props) {
   const printer = useSettingsSection("printer")
+  const { settings } = useSettings()
+  const companyPhone = settings.general.businessPhone
   const [open, setOpen]   = useState(false)
   const [busy, setBusy]   = useState<"child" | "parent" | "both" | null>(null)
   const [audit, setAudit] = useState<AuditEntry | null>(null)
   const popRef = useRef<HTMLDivElement | null>(null)
 
-  const jobs = useMemo(() => buildJobs(session), [session])
+  const jobs = useMemo(() => buildJobs(session, companyPhone), [session, companyPhone])
 
   // Hydrate this session's audit row from localStorage on open.
   useEffect(() => {

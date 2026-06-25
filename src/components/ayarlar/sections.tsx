@@ -434,6 +434,19 @@ export function SectionPrinter() {
         </Field>
       </FieldGroup>
 
+      <FieldGroup title="Test">
+        <Field label="Test sayfası" hint="Üretim verisine dokunmadan sahte etiket bas">
+          <a
+            href="/printer-test"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-500"
+          >
+            🖨 Test Yazdır
+          </a>
+        </Field>
+      </FieldGroup>
+
       <SaveBar saved={saved} onReset={() => replace("printer", DEFAULT_SETTINGS.printer)} />
     </>
   )

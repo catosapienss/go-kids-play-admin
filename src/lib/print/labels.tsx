@@ -17,18 +17,17 @@
 import type { PrinterSettings } from "@/types/settings"
 
 export interface ChildLabelData {
-  childName:     string
-  startTime:     string   // "HH:mm"
-  endTime:       string   // "HH:mm" or "Sınırsız"
-  durationLabel: string   // "30 dk", "Serbest", ...
-  sessionNumber: string   // public-facing session number / short id
+  childName: string
+  startTime: string   // "HH:mm"
+  endTime:   string   // "HH:mm" or "Sınırsız"
 }
 
 export interface ParentLabelData {
   childName:     string
-  parentName:    string
-  parentPhone:   string
-  sessionNumber: string
+  companyPhone:  string   // shop / company phone — e.g. "+90 532 542 5205"
+  durationLabel: string   // "30 Dakika" / "60 Dakika" / "Sınırsız" / ...
+  startTime:     string   // "HH:mm"
+  endTime:       string   // "HH:mm" or "Sınırsız"
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -44,6 +43,10 @@ function escapeHtml(input: string): string {
 function baseCss(printer: PrinterSettings): string {
   const w = printer.labelWidthMm
   const h = printer.labelHeightMm
+  // Scale type by the smallest label dimension so 40×60, 60×40, 80×40 all
+  // remain legible across the floor.
+  const nameSize = Math.min(w, h) >= 40 ? "11mm" : Math.min(w, h) >= 30 ? "9mm" : "7mm"
+  const timeSize = Math.min(w, h) >= 40 ? "8mm"  : Math.min(w, h) >= 30 ? "6.5mm" : "5mm"
   return `
     @page { size: ${w}mm ${h}mm; margin: 0; }
     * { box-sizing: border-box; }
@@ -56,46 +59,38 @@ function baseCss(printer: PrinterSettings): string {
       page-break-after: always;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 2mm;
       overflow: hidden;
     }
     .label:last-child { page-break-after: auto; }
-    .row { display: flex; align-items: baseline; justify-content: space-between; gap: 4mm; }
     .label .name {
-      font-size: ${Math.min(w, h) >= 40 ? "7mm" : "5mm"};
+      font-size: ${nameSize};
       font-weight: 900;
-      line-height: 1.05;
+      line-height: 1.0;
       text-transform: uppercase;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.04em;
       word-break: break-word;
     }
-    .label .meta {
-      font-size: 3mm;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      opacity: 0.7;
-    }
-    .label .strong {
-      font-size: 4.5mm;
-      font-weight: 800;
-    }
-    .label .session {
-      font-family: ui-monospace, "SF Mono", Menlo, monospace;
-      font-size: 3.5mm;
+    .label .times {
+      font-size: ${timeSize};
       font-weight: 900;
-      letter-spacing: 0.1em;
-      padding: 1mm 2mm;
-      border: 0.4mm solid #000;
-      border-radius: 1mm;
-    }
-    .label .row-2 {
-      font-size: 4mm;
-      font-weight: 700;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
     }
     .label .phone {
       font-size: 5mm;
       font-weight: 900;
+      letter-spacing: 0.04em;
+      font-variant-numeric: tabular-nums;
+    }
+    .label .duration {
+      font-size: 4.5mm;
+      font-weight: 800;
+      text-transform: uppercase;
       letter-spacing: 0.04em;
     }
     @media screen {
@@ -112,34 +107,34 @@ function baseCss(printer: PrinterSettings): string {
 
 // ─── HTML builders ───────────────────────────────────────────────────────────
 
+// Child label — minimal: child name (huge) over entry → exit times.
+//
+//   ARDA
+//   14:30
+//   15:30
 export function renderChildLabel(data: ChildLabelData): string {
   return `
     <div class="label">
-      <div class="row">
-        <span class="meta">Çocuk</span>
-        <span class="session">#${escapeHtml(data.sessionNumber)}</span>
-      </div>
       <div class="name">${escapeHtml(data.childName)}</div>
-      <div class="row row-2">
-        <span>${escapeHtml(data.startTime)} → ${escapeHtml(data.endTime)}</span>
-        <span class="strong">${escapeHtml(data.durationLabel)}</span>
-      </div>
+      <div class="times">${escapeHtml(data.startTime)}</div>
+      <div class="times">${escapeHtml(data.endTime)}</div>
     </div>
   `
 }
 
+// Parent label — child name, company phone, duration, entry-exit range.
+//
+//   ARDA
+//   +90 532 542 5205
+//   60 Dakika
+//   14:30 - 15:30
 export function renderParentLabel(data: ParentLabelData): string {
   return `
     <div class="label">
-      <div class="row">
-        <span class="meta">Veli</span>
-        <span class="session">#${escapeHtml(data.sessionNumber)}</span>
-      </div>
       <div class="name">${escapeHtml(data.childName)}</div>
-      <div class="row row-2">
-        <span class="strong">${escapeHtml(data.parentName || "—")}</span>
-      </div>
-      <div class="phone">${escapeHtml(data.parentPhone || "—")}</div>
+      <div class="phone">${escapeHtml(data.companyPhone || "—")}</div>
+      <div class="duration">${escapeHtml(data.durationLabel)}</div>
+      <div class="times">${escapeHtml(data.startTime)} - ${escapeHtml(data.endTime)}</div>
     </div>
   `
 }
