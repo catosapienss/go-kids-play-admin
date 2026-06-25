@@ -6,6 +6,7 @@ import { TopStatsBar } from "@/components/aktif-oyun/top-stats-bar"
 import { FilterBar } from "@/components/aktif-oyun/filter-bar"
 import { ActiveChildCard } from "@/components/aktif-oyun/active-child-card"
 import { CompactSessionCard } from "@/components/aktif-oyun/compact-session-card"
+import { SessionTableView } from "@/components/aktif-oyun/session-table-view"
 import { DensityToggle, useDensity } from "@/components/aktif-oyun/density-toggle"
 import { ExtendTimeModal } from "@/components/aktif-oyun/extend-time-modal"
 import { CancelSessionModal } from "@/components/aktif-oyun/cancel-session-modal"
@@ -124,6 +125,14 @@ export default function AktifOyunPage() {
                   </p>
                 </div>
               </div>
+            ) : density === "table" ? (
+              <SessionTableView
+                sessions={sorted}
+                onExtend={(id) => setExtendTarget(sessions.find((s) => s.id === id) ?? null)}
+                onExit={handleExit}
+                onPause={handlePause}
+                onResume={handleResume}
+              />
             ) : density === "dense" ? (
               /* High-density grid — 20-30 kids visible on a tablet */
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5">

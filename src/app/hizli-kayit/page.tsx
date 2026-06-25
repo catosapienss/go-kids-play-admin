@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { CustomerPanel } from "@/components/hizli-kayit/customer-panel"
-import { ChildrenPanel } from "@/components/hizli-kayit/children-panel"
+import { FastChildrenInput } from "@/components/hizli-kayit/fast-children-input"
 import { PaymentPanel } from "@/components/hizli-kayit/payment-panel"
 import { ActionBar } from "@/components/hizli-kayit/action-bar"
 import { SuccessModal } from "@/components/hizli-kayit/success-modal"
@@ -116,10 +116,12 @@ export default function HizliKayitPage() {
     })
   }, [handleSelectCustomer])
 
-  const handleAddChild = useCallback(() => {
+  const handleAddChild = useCallback((initialName?: string): string => {
     const child = makeChild()
+    if (initialName) child.name = initialName
     setChildren((prev) => [...prev, child])
     setSelectedChildId(child.id)
+    return child.id
   }, [])
 
   const handleSelectChild = useCallback((id: string) => {
@@ -269,7 +271,7 @@ export default function HizliKayitPage() {
 
           {/* MIDDLE: Children */}
           <div className="border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 p-4 lg:p-5 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/30">
-            <ChildrenPanel
+            <FastChildrenInput
               kidsList={children}
               selectedChildId={selectedChildId}
               onAdd={handleAddChild}
