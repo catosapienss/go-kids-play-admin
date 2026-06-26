@@ -303,15 +303,9 @@ export default function HizliKayitPage() {
   return (
     <MainLayout title="Hızlı Kayıt" subtitle="Kasa ekranı · Maks 10 saniyede işlem">
       <div className="flex flex-col -m-6 overflow-hidden" style={{ height: "calc(100vh - 4rem)" }}>
-        {/* Shift clock — cashier's "am I on the clock?" gate */}
-        <div className="px-4 lg:px-5 pt-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-          <ShiftClockCard compact />
-        </div>
-
-        {/* Code lookup — primary entry point when the parent already has a code */}
-        <div className="px-4 lg:px-5 pt-3 pb-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/30">
-          <EntryCodeLookup onResolved={handleCodeResolved} />
-        </div>
+        {/* Shift clock + entry-code lookup are intentionally hidden — operations
+            don't use them yet. Imports kept so re-enabling later is a single
+            uncomment, no refactor. */}
 
         {/* 3-column main area */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 min-h-0 overflow-hidden">
