@@ -17,8 +17,8 @@ interface Props {
 }
 
 function durationLabel(d: ChildEntry["duration"]): string {
-  if (d === "free" || d == null) return "Sınırsız"
-  return `${d} Dakika`
+  if (d === "free" || d == null) return "SINIRSIZ"
+  return `${d} DK`
 }
 
 // ─── Print Buttons ────────────────────────────────────────────────────────────
@@ -41,36 +41,29 @@ function formatHM(d: Date): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function buildChildJobs(kids: ChildEntry[]): LabelJob[] {
+// Child + parent labels carry identical data — they print identical
+// stickers on purpose so staff doesn't have to keep track of which copy
+// is which during busy hours.
+function buildSharedData(child: ChildEntry, companyPhone: string): ChildLabelData {
   const now = new Date()
-  return kids.map<LabelJob>((child) => {
-    const isFree = child.duration === "free" || child.duration == null
-    const minutes = typeof child.duration === "number" ? child.duration : 0
-    const end = isFree ? null : new Date(now.getTime() + minutes * 60_000)
-    const data: ChildLabelData = {
-      childName: (child.name || "—").trim(),
-      startTime: formatHM(now),
-      endTime:   end ? formatHM(end) : "Sınırsız",
-    }
-    return { kind: "child", data }
-  })
+  const isFree  = child.duration === "free" || child.duration == null
+  const minutes = typeof child.duration === "number" ? child.duration : 0
+  const end     = isFree ? null : new Date(now.getTime() + minutes * 60_000)
+  return {
+    childName:     (child.name || "—").trim(),
+    startTime:     formatHM(now),
+    endTime:       end ? formatHM(end) : "SINIRSIZ",
+    durationLabel: durationLabel(child.duration),
+    companyPhone:  companyPhone || "",
+  }
+}
+
+function buildChildJobs(kids: ChildEntry[], companyPhone: string): LabelJob[] {
+  return kids.map<LabelJob>((child) => ({ kind: "child",  data: buildSharedData(child, companyPhone) }))
 }
 
 function buildParentJobs(kids: ChildEntry[], companyPhone: string): LabelJob[] {
-  const now = new Date()
-  return kids.map<LabelJob>((child) => {
-    const isFree = child.duration === "free" || child.duration == null
-    const minutes = typeof child.duration === "number" ? child.duration : 0
-    const end = isFree ? null : new Date(now.getTime() + minutes * 60_000)
-    const data: ParentLabelData = {
-      childName:     (child.name || "—").trim(),
-      companyPhone:  companyPhone || "—",
-      durationLabel: durationLabel(child.duration),
-      startTime:     formatHM(now),
-      endTime:       end ? formatHM(end) : "Sınırsız",
-    }
-    return { kind: "parent", data }
-  })
+  return kids.map<LabelJob>((child) => ({ kind: "parent", data: buildSharedData(child, companyPhone) as ParentLabelData }))
 }
 
 export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _sessionNumber }: Props) {
@@ -80,7 +73,7 @@ export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _se
   const [busy, setBusy] = useState<"child" | "parent" | "both" | null>(null)
   const autoFiredRef = useRef(false)
 
-  const childJobs  = useMemo(() => buildChildJobs(kidsList),                [kidsList])
+  const childJobs  = useMemo(() => buildChildJobs(kidsList, companyPhone),  [kidsList, companyPhone])
   const parentJobs = useMemo(() => buildParentJobs(kidsList, companyPhone), [kidsList, companyPhone])
 
   async function run(which: "child" | "parent" | "both") {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Printer, User, Users, Loader2, Eye, Phone, AlertCircle } from "lucide-react"
+import { Printer, User, Loader2, Eye, Phone, AlertCircle } from "lucide-react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { cn } from "@/lib/utils"
 import { useSettings, useSettingsSection } from "@/lib/settings/settings-store"
@@ -19,17 +19,11 @@ import {
 // IMPORTANT: nothing on this page writes to Supabase. No session/payment/
 // customer is created. Safe to spam during printer setup.
 
-const DEFAULT_CHILD: ChildLabelData = {
-  childName: "ARDA",
-  startTime: "14:30",
-  endTime:   "15:30",
-}
-
-const DEFAULT_PARENT_BASE = {
-  childName:     "ARDA",
-  durationLabel: "60 Dakika",
-  startTime:     "14:30",
-  endTime:       "15:30",
+const DEFAULT_BASE = {
+  childName:     "ARELA",
+  startTime:     "14:43",
+  endTime:       "15:43",
+  durationLabel: "60 DK",
 }
 
 export default function PrinterTestPage() {
@@ -37,8 +31,10 @@ export default function PrinterTestPage() {
   const { settings } = useSettings()
   const fallbackPhone = settings.general.businessPhone || "+90 532 542 5205"
 
-  const [child, setChild]   = useState<ChildLabelData>(DEFAULT_CHILD)
-  const [parent, setParent] = useState<ParentLabelData>({ ...DEFAULT_PARENT_BASE, companyPhone: fallbackPhone })
+  // Child + parent labels now share the same shape. Editing one updates both
+  // previews — they print identically on purpose.
+  const [child, setChild]   = useState<ChildLabelData>({ ...DEFAULT_BASE, companyPhone: fallbackPhone })
+  const [parent, setParent] = useState<ParentLabelData>({ ...DEFAULT_BASE, companyPhone: fallbackPhone })
   const [busy, setBusy]     = useState<"child" | "parent" | "both" | null>(null)
 
   async function run(which: "child" | "parent" | "both") {
@@ -55,25 +51,30 @@ export default function PrinterTestPage() {
     }
   }
 
-  // Inline previews share the renderer with the printer.
+  // Inline previews share the renderer with the printer. The CSS below mirrors
+  // baseCss() in src/lib/print/labels.tsx so the on-screen sticker matches
+  // what the thermal printer puts out.
   const childHtml  = renderChildLabel(child)
   const parentHtml = renderParentLabel(parent)
-  const nameSize = Math.min(printer.labelWidthMm, printer.labelHeightMm) >= 40 ? "11mm"
-                 : Math.min(printer.labelWidthMm, printer.labelHeightMm) >= 30 ? "9mm" : "7mm"
-  const timeSize = Math.min(printer.labelWidthMm, printer.labelHeightMm) >= 40 ? "8mm"
-                 : Math.min(printer.labelWidthMm, printer.labelHeightMm) >= 30 ? "6.5mm" : "5mm"
   const previewCss = `
     .preview { background:#fff; color:#000; border:1px dashed #94a3b8; border-radius:4px;
                box-shadow:0 1px 2px rgba(0,0,0,0.06); overflow:hidden;
                width:${printer.labelWidthMm}mm; height:${printer.labelHeightMm}mm;
                font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
-    .preview .label { width:100%; height:100%; padding:2mm 3mm; display:flex; flex-direction:column;
-                      align-items:center; justify-content:center; text-align:center; gap:2mm; box-sizing:border-box; }
-    .preview .name { font-size:${nameSize}; font-weight:900; line-height:1; text-transform:uppercase;
-                     letter-spacing:0.04em; word-break:break-word; }
-    .preview .times { font-size:${timeSize}; font-weight:900; line-height:1.1; font-variant-numeric:tabular-nums; letter-spacing:0.02em; }
-    .preview .phone { font-size:5mm; font-weight:900; letter-spacing:0.04em; font-variant-numeric:tabular-nums; }
-    .preview .duration { font-size:4.5mm; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; }
+    .preview .label { position:relative; width:100%; height:100%; padding:2mm 2.5mm 1.5mm;
+                      display:flex; flex-direction:column; align-items:center;
+                      justify-content:flex-start; text-align:center; box-sizing:border-box; }
+    .preview .logo  { position:absolute; top:1.5mm; left:2mm; width:9mm; height:9mm; object-fit:contain; }
+    .preview .brand { width:100%; font-size:8pt; font-weight:900; letter-spacing:0.08em;
+                      text-transform:uppercase; text-align:right; line-height:1; }
+    .preview .name  { margin-top:1.5mm; font-size:26pt; font-weight:900; line-height:0.95;
+                      text-transform:uppercase; letter-spacing:0.04em; word-break:break-word; }
+    .preview .times { margin-top:1.5mm; font-size:19pt; font-weight:900; line-height:1.05;
+                      font-variant-numeric:tabular-nums; letter-spacing:0.02em; }
+    .preview .duration { margin-top:1mm; font-size:15pt; font-weight:800;
+                         text-transform:uppercase; letter-spacing:0.05em; }
+    .preview .phone { margin-top:auto; padding-top:1mm; font-size:13pt; font-weight:900;
+                      letter-spacing:0.03em; font-variant-numeric:tabular-nums; }
   `
 
   return (
@@ -93,49 +94,38 @@ export default function PrinterTestPage() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-5">
-          {/* Child label panel */}
-          <Panel
-            title="Çocuk Etiketi"
-            icon={<User className="w-4 h-4" />}
-            previewHtml={childHtml}
-            onPrint={() => run("child")}
-            busy={busy === "child"}
-            disabled={!!busy}
-          >
-            <LabeledInput label="Çocuk adı" value={child.childName}
-              onChange={(v) => setChild({ ...child, childName: v })} icon={<User className="w-3.5 h-3.5"/>} />
-            <div className="grid grid-cols-2 gap-2">
-              <LabeledInput label="Başlangıç" value={child.startTime}
-                onChange={(v) => setChild({ ...child, startTime: v })} placeholder="HH:mm" />
-              <LabeledInput label="Bitiş" value={child.endTime}
-                onChange={(v) => setChild({ ...child, endTime: v })} placeholder="HH:mm" />
-            </div>
-          </Panel>
+        {/* Single editor — child + parent labels are identical */}
+        <Panel
+          title="Etiket"
+          icon={<User className="w-4 h-4" />}
+          previewHtml={childHtml}
+          onPrint={() => run("child")}
+          busy={busy === "child"}
+          disabled={!!busy}
+        >
+          <LabeledInput label="Çocuk adı" value={child.childName}
+            onChange={(v) => { const next = { ...child, childName: v }; setChild(next); setParent({ ...parent, childName: v }) }}
+            icon={<User className="w-3.5 h-3.5"/>} />
+          <div className="grid grid-cols-2 gap-2">
+            <LabeledInput label="Giriş" value={child.startTime}
+              onChange={(v) => { setChild({ ...child, startTime: v }); setParent({ ...parent, startTime: v }) }} placeholder="HH:mm" />
+            <LabeledInput label="Çıkış" value={child.endTime}
+              onChange={(v) => { setChild({ ...child, endTime: v }); setParent({ ...parent, endTime: v }) }} placeholder="HH:mm" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <LabeledInput label="Süre" value={child.durationLabel}
+              onChange={(v) => { setChild({ ...child, durationLabel: v }); setParent({ ...parent, durationLabel: v }) }} placeholder="60 DK" />
+            <LabeledInput label="Telefon" value={child.companyPhone}
+              onChange={(v) => { setChild({ ...child, companyPhone: v }); setParent({ ...parent, companyPhone: v }) }}
+              icon={<Phone className="w-3.5 h-3.5"/>} />
+          </div>
+          <p className="text-[10px] text-slate-500 mt-1">
+            Çocuk ve veli etiketleri aynı tasarımı kullanır — her ikisi de identik basılır.
+          </p>
+        </Panel>
 
-          {/* Parent label panel */}
-          <Panel
-            title="Veli Etiketi"
-            icon={<Users className="w-4 h-4" />}
-            previewHtml={parentHtml}
-            onPrint={() => run("parent")}
-            busy={busy === "parent"}
-            disabled={!!busy}
-          >
-            <LabeledInput label="Çocuk adı" value={parent.childName}
-              onChange={(v) => setParent({ ...parent, childName: v })} icon={<User className="w-3.5 h-3.5"/>} />
-            <LabeledInput label="Şirket telefonu" value={parent.companyPhone}
-              onChange={(v) => setParent({ ...parent, companyPhone: v })} icon={<Phone className="w-3.5 h-3.5"/>} />
-            <LabeledInput label="Süre" value={parent.durationLabel}
-              onChange={(v) => setParent({ ...parent, durationLabel: v })} placeholder="60 Dakika" />
-            <div className="grid grid-cols-2 gap-2">
-              <LabeledInput label="Başlangıç" value={parent.startTime}
-                onChange={(v) => setParent({ ...parent, startTime: v })} placeholder="HH:mm" />
-              <LabeledInput label="Bitiş" value={parent.endTime}
-                onChange={(v) => setParent({ ...parent, endTime: v })} placeholder="HH:mm" />
-            </div>
-          </Panel>
-        </div>
+        {/* Hidden parent panel kept to preserve previewHtml exposure for future divergence */}
+        <div className="sr-only" aria-hidden>{parentHtml}</div>
 
         {/* Combined print + settings recap */}
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">

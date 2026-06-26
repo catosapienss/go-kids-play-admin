@@ -49,22 +49,24 @@ function buildJobs(session: ActiveSession, companyPhone: string): { child: Label
     ? "Sınırsız"
     : `${session.totalMinutes} Dakika`
 
-  const child: ChildLabelData = {
-    childName: (session.childName || "—").trim(),
-    startTime: session.entryTime,
-    endTime:   endStr,
-  }
-  const parent: ParentLabelData = {
+  // Child + parent labels now share the same shape (and the same printed
+  // output). We keep both jobs so reprint counts stay accurate.
+  const shared: ChildLabelData = {
     childName:     (session.childName || "—").trim(),
-    companyPhone:  companyPhone || "—",
-    durationLabel,
     startTime:     session.entryTime,
     endTime:       endStr,
+    durationLabel: shortDurationLabel(durationLabel),
+    companyPhone:  companyPhone || "",
   }
   return {
-    child:  { kind: "child",  data: child },
-    parent: { kind: "parent", data: parent },
+    child:  { kind: "child",  data: shared },
+    parent: { kind: "parent", data: shared as ParentLabelData },
   }
+}
+
+function shortDurationLabel(label: string): string {
+  // "60 Dakika" → "60 DK", "Sınırsız" stays as-is.
+  return label.replace(/\sDakika$/i, " DK").toUpperCase()
 }
 
 function pad(n: number): string { return n < 10 ? "0" + n : String(n) }
