@@ -133,7 +133,7 @@ export function CustomerSearchPalette({ onSelect, autoFocus, initialQuery, exter
                       <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{c.fullName}</p>
                       <LoyaltyBadge customer={c} size="sm" showLabel={false} />
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex-wrap">
                       <span className="inline-flex items-center gap-1">
                         <Phone className="w-2.5 h-2.5" />
                         {fmtPhone(c.phone)}
@@ -143,6 +143,14 @@ export function CustomerSearchPalette({ onSelect, autoFocus, initialQuery, exter
                         <Baby className="w-2.5 h-2.5" />
                         {c.childCount} çocuk
                       </span>
+                      {c.walletBalance > 0 && (
+                        <>
+                          <span className="text-slate-300 dark:text-slate-600">·</span>
+                          <span className="inline-flex items-center gap-1 text-violet-600 dark:text-violet-400 font-semibold">
+                            💳 ₺{c.walletBalance.toLocaleString("tr-TR")} cüzdan
+                          </span>
+                        </>
+                      )}
                     </div>
                     {c.tags.length > 0 && (
                       <div className="mt-1">
@@ -151,14 +159,17 @@ export function CustomerSearchPalette({ onSelect, autoFocus, initialQuery, exter
                     )}
                   </div>
 
-                  {/* Stats column */}
+                  {/* Stats column — last visit + visit count + spent total */}
                   <div className="hidden sm:flex flex-col items-end gap-0.5 flex-shrink-0">
-                    <span className="text-[10px] uppercase tracking-wider text-slate-400">Son</span>
+                    <span className="text-[10px] uppercase tracking-wider text-slate-400">Son Ziyaret</span>
                     <span className="text-xs font-bold tabular-nums text-slate-700 dark:text-slate-200">
-                      {fmtRelative(c.lastVisitAt)}
+                      {fmtRelative(c.lastVisitAt ?? c.lastSessionAt)}
                     </span>
                     <span className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
-                      {c.visitCount} ziyaret · ₺{c.totalSpent.toLocaleString("tr-TR")}
+                      {c.visitCount} ziyaret
+                    </span>
+                    <span className="text-[11px] font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                      ₺{c.totalSpent.toLocaleString("tr-TR")}
                     </span>
                   </div>
                 </button>
