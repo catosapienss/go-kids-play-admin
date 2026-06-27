@@ -38,12 +38,15 @@ export default function AktifOyunPage() {
 
   const handlePause  = useCallback((id: string) => pause(id), [pause])
   const handleResume = useCallback((id: string) => resume(id), [resume])
-  // Open the end-with-reason modal instead of immediately ending. The modal
-  // calls exit(id, reason, note) once the operator confirms.
+  // Manuel Çıkış → opens the reason modal. Modal calls exit(id, reason, note).
   const handleExit   = useCallback((id: string) => {
     const target = sessions.find((s) => s.id === id)
     if (target) setEndTarget(target)
   }, [sessions])
+  // Süresi Bitti → one-tap normal completion, no modal.
+  const handleTimeExpired = useCallback((id: string) => {
+    void exit(id, "time_expired")
+  }, [exit])
 
   const handleConfirmEnd = useCallback(async (reason: EndReason, note: string | undefined) => {
     if (!endTarget) return
@@ -129,7 +132,8 @@ export default function AktifOyunPage() {
               <SessionTableView
                 sessions={sorted}
                 onExtend={(id) => setExtendTarget(sessions.find((s) => s.id === id) ?? null)}
-                onExit={handleExit}
+                onTimeExpired={handleTimeExpired}
+                onManualExit={handleExit}
                 onPause={handlePause}
                 onResume={handleResume}
               />
@@ -145,6 +149,7 @@ export default function AktifOyunPage() {
                     onPause={handlePause}
                     onResume={handleResume}
                     onExit={handleExit}
+                    onTimeExpired={handleTimeExpired}
                   />
                 ))}
               </div>
@@ -159,6 +164,7 @@ export default function AktifOyunPage() {
                     onPause={handlePause}
                     onResume={handleResume}
                     onExit={handleExit}
+                    onTimeExpired={handleTimeExpired}
                   />
                 ))}
               </div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { getStatus, formatTime } from "@/types/aktif-oyun"
 import type { ActiveSession } from "@/types/aktif-oyun"
-import { Plus, LogOut, Pause, Play, Sparkles } from "lucide-react"
+import { Plus, LogOut, Pause, Play, Sparkles, Clock } from "lucide-react"
 import { ReprintLabelsButton } from "./reprint-labels-button"
 
 // ─── Compact / High-Density Session Card ─────────────────────────────────────
@@ -25,6 +25,7 @@ interface CompactSessionCardProps {
   onPause: (id: string) => void
   onResume: (id: string) => void
   onExit: (id: string) => void
+  onTimeExpired: (id: string) => void
 }
 
 function initials(name: string): string {
@@ -63,7 +64,7 @@ function statusStyle(session: ActiveSession) {
 }
 
 export function CompactSessionCard({
-  session, onExtend, onCancel, onPause, onResume, onExit,
+  session, onExtend, onCancel, onPause, onResume, onExit, onTimeExpired,
 }: CompactSessionCardProps) {
   // 1s tick for the countdown — local to keep the parent list lightweight.
   const [, setTick] = useState(0)
@@ -148,7 +149,13 @@ export function CompactSessionCard({
           )
         )}
         <ActionButton
-          label="Çıkış"
+          label="Süresi Bitti"
+          tone="emerald"
+          icon={Clock}
+          onClick={() => onTimeExpired(session.id)}
+        />
+        <ActionButton
+          label="Manuel Çıkış"
           tone="rose"
           icon={LogOut}
           onClick={() => onExit(session.id)}
@@ -163,14 +170,15 @@ interface ABProps {
   label: string
   icon: React.ComponentType<{ className?: string }>
   onClick: () => void
-  tone: "violet" | "rose" | "amber" | "slate"
+  tone: "violet" | "rose" | "amber" | "slate" | "emerald"
 }
 
 const TONES: Record<ABProps["tone"], string> = {
-  violet: "bg-violet-500/15 text-violet-700 dark:text-violet-300 hover:bg-violet-500/25",
-  rose:   "bg-rose-500/15   text-rose-700   dark:text-rose-300   hover:bg-rose-500/25",
-  amber:  "bg-amber-500/15  text-amber-700  dark:text-amber-300  hover:bg-amber-500/25",
-  slate:  "bg-slate-500/15  text-slate-700  dark:text-slate-300  hover:bg-slate-500/25",
+  violet:  "bg-violet-500/15  text-violet-700  dark:text-violet-300  hover:bg-violet-500/25",
+  rose:    "bg-rose-500/15    text-rose-700    dark:text-rose-300    hover:bg-rose-500/25",
+  amber:   "bg-amber-500/15   text-amber-700   dark:text-amber-300   hover:bg-amber-500/25",
+  slate:   "bg-slate-500/15   text-slate-700   dark:text-slate-300   hover:bg-slate-500/25",
+  emerald: "bg-emerald-600    text-white                              hover:bg-emerald-500",
 }
 
 function ActionButton({ label, icon: Icon, onClick, tone }: ABProps) {

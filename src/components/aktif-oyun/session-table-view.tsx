@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { Plus, LogOut, Crown, Pause, Play, Banknote, CreditCard, Wallet, AlertCircle } from "lucide-react"
+import { Plus, LogOut, Crown, Pause, Play, Banknote, CreditCard, Wallet, AlertCircle, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ActiveSession } from "@/types/aktif-oyun"
 import { getStatus, formatTime } from "@/types/aktif-oyun"
@@ -22,11 +22,12 @@ import { useSessionPayments, type DerivedMethod } from "./use-session-payments"
 // batched select against PostgREST, no inserts/updates ever.
 
 interface Props {
-  sessions:  ActiveSession[]
-  onExtend:  (id: string) => void
-  onExit:    (id: string) => void
-  onPause:   (id: string) => void
-  onResume:  (id: string) => void
+  sessions:       ActiveSession[]
+  onExtend:       (id: string) => void
+  onTimeExpired:  (id: string) => void
+  onManualExit:   (id: string) => void
+  onPause:        (id: string) => void
+  onResume:       (id: string) => void
 }
 
 const METHOD_META: Record<DerivedMethod, { label: string; icon?: typeof Banknote; cls: string }> = {
@@ -70,7 +71,7 @@ function remainingLabel(s: ActiveSession): string {
 
 function pad(n: number): string { return n < 10 ? "0" + n : String(n) }
 
-export function SessionTableView({ sessions, onExtend, onExit, onPause, onResume }: Props) {
+export function SessionTableView({ sessions, onExtend, onTimeExpired, onManualExit, onPause, onResume }: Props) {
   const ids = useMemo(() => sessions.map((s) => s.id), [sessions])
   const payments = useSessionPayments(ids)
 
@@ -184,7 +185,8 @@ export function SessionTableView({ sessions, onExtend, onExit, onPause, onResume
                       ) : (s.packageType === "Serbest" || s.totalMinutes === 0) ? (
                         <RowBtn onClick={() => onPause(s.id)} title="Duraklat" icon={Pause} tone="slate" />
                       ) : null}
-                      <RowBtn onClick={() => onExit(s.id)} title="Çıkış" icon={LogOut} tone="rose" />
+                      <RowBtn onClick={() => onTimeExpired(s.id)} title="Süresi Bitti — Tek tıkla normal sonlandır" icon={Clock} tone="emerald" />
+                      <RowBtn onClick={() => onManualExit(s.id)} title="Manuel Çıkış — Sebep seç" icon={LogOut} tone="rose" />
                       <ReprintLabelsButton session={s} />
                     </div>
                   </td>
@@ -215,13 +217,14 @@ function RowBtn({
   onClick, title, icon: Icon, tone,
 }: {
   onClick: () => void; title: string; icon: typeof Plus
-  tone: "violet" | "rose" | "amber" | "slate"
+  tone: "violet" | "rose" | "amber" | "slate" | "emerald"
 }) {
   const palette = {
-    violet: "bg-violet-600 text-white hover:bg-violet-500",
-    rose:   "bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-500/25",
-    amber:  "bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-500/25",
-    slate:  "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700",
+    violet:  "bg-violet-600 text-white hover:bg-violet-500",
+    rose:    "bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-500/25",
+    amber:   "bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-500/25",
+    slate:   "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700",
+    emerald: "bg-emerald-600 text-white hover:bg-emerald-500",
   }[tone]
   return (
     <button

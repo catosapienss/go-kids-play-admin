@@ -71,6 +71,8 @@ export async function endSession(sessionId: string): Promise<void> {
 
 // ─── Manual termination with reason ──────────────────────────────────────────
 export type EndReason =
+  | "time_expired"
+  | "manual_exit"
   | "customer_left_early"
   | "parent_request"
   | "child_request"
@@ -79,6 +81,8 @@ export type EndReason =
   | "other"
 
 export const END_REASON_LABELS: Record<EndReason, string> = {
+  time_expired:        "Süresi Bitti",
+  manual_exit:         "Manuel Çıkış",
   customer_left_early: "Müşteri erken ayrıldı",
   parent_request:      "Veli isteği",
   child_request:       "Çocuk isteği",
@@ -86,6 +90,18 @@ export const END_REASON_LABELS: Record<EndReason, string> = {
   staff_decision:      "Personel kararı",
   other:               "Diğer",
 }
+
+// Reasons surfaced in the Manuel Çıkış modal — `time_expired` is not in this
+// list because it has its own one-tap action; `manual_exit` is the catch-all
+// inside the modal alongside the granular ones.
+export const MANUAL_END_REASONS: EndReason[] = [
+  "customer_left_early",
+  "parent_request",
+  "child_request",
+  "emergency",
+  "staff_decision",
+  "other",
+]
 
 export async function endSessionWithReason(
   sessionId: string,

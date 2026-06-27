@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { X, Loader2, LogOut, AlertTriangle, UserCheck, Baby, ShieldAlert, MoreHorizontal, MessageSquare } from "lucide-react"
 import type { ActiveSession } from "@/types/aktif-oyun"
-import { END_REASON_LABELS, type EndReason } from "@/lib/services/session.service"
+import { END_REASON_LABELS, MANUAL_END_REASONS, type EndReason } from "@/lib/services/session.service"
 import { cn } from "@/lib/utils"
 
 // ─── End Session Modal ───────────────────────────────────────────────────────
@@ -18,14 +18,18 @@ interface Props {
   onConfirm: (reason: EndReason, note: string | undefined) => Promise<void> | void
 }
 
-const REASON_OPTIONS: { key: EndReason; icon: React.ReactNode; tone: string }[] = [
-  { key: "customer_left_early", icon: <LogOut       className="w-4 h-4" />, tone: "from-amber-500 to-orange-500" },
-  { key: "parent_request",      icon: <UserCheck    className="w-4 h-4" />, tone: "from-sky-500 to-blue-500" },
-  { key: "child_request",       icon: <Baby         className="w-4 h-4" />, tone: "from-pink-500 to-rose-500" },
-  { key: "emergency",           icon: <ShieldAlert  className="w-4 h-4" />, tone: "from-rose-500 to-red-600" },
-  { key: "staff_decision",      icon: <AlertTriangle className="w-4 h-4" />, tone: "from-violet-500 to-purple-600" },
-  { key: "other",               icon: <MoreHorizontal className="w-4 h-4" />, tone: "from-slate-500 to-slate-700" },
-]
+const REASON_ICONS: Record<EndReason, { icon: React.ReactNode; tone: string }> = {
+  time_expired:        { icon: <LogOut       className="w-4 h-4" />, tone: "from-emerald-500 to-green-600" },
+  manual_exit:         { icon: <LogOut       className="w-4 h-4" />, tone: "from-slate-500 to-slate-700" },
+  customer_left_early: { icon: <LogOut       className="w-4 h-4" />, tone: "from-amber-500 to-orange-500" },
+  parent_request:      { icon: <UserCheck    className="w-4 h-4" />, tone: "from-sky-500 to-blue-500" },
+  child_request:       { icon: <Baby         className="w-4 h-4" />, tone: "from-pink-500 to-rose-500" },
+  emergency:           { icon: <ShieldAlert  className="w-4 h-4" />, tone: "from-rose-500 to-red-600" },
+  staff_decision:      { icon: <AlertTriangle className="w-4 h-4" />, tone: "from-violet-500 to-purple-600" },
+  other:               { icon: <MoreHorizontal className="w-4 h-4" />, tone: "from-slate-500 to-slate-700" },
+}
+
+const REASON_OPTIONS = MANUAL_END_REASONS.map((key) => ({ key, ...REASON_ICONS[key] }))
 
 export function EndSessionModal({ session, onClose, onConfirm }: Props) {
   const [reason, setReason] = useState<EndReason | null>(null)

@@ -1,6 +1,6 @@
 "use client"
 
-import { Crown, Pause, Play, LogOut, Plus, ChevronDown, XCircle } from "lucide-react"
+import { Crown, Pause, Play, LogOut, Plus, ChevronDown, XCircle, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getStatus, formatTime, elapsedMinutes } from "@/types/aktif-oyun"
 import type { ActiveSession } from "@/types/aktif-oyun"
@@ -14,7 +14,8 @@ interface ActiveChildCardProps {
   onCancel: (id: string) => void
   onPause: (id: string) => void
   onResume: (id: string) => void
-  onExit: (id: string) => void
+  onExit: (id: string) => void           // Manuel Çıkış (opens reason modal)
+  onTimeExpired: (id: string) => void    // Süresi Bitti (one-tap normal end)
 }
 
 const STATUS_CONFIG = {
@@ -72,7 +73,7 @@ const AVATAR_COLORS = [
   "from-cyan-400 to-teal-500",
 ]
 
-export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume, onExit }: ActiveChildCardProps) {
+export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume, onExit, onTimeExpired }: ActiveChildCardProps) {
   const status = getStatus(session)
   const cfg = STATUS_CONFIG[status]
   const elapsed = elapsedMinutes(session.entryTimestamp)
@@ -205,13 +206,24 @@ export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume
             </Tooltip>
           )}
 
-          {/* Exit */}
+          {/* Süresi Bitti — one-tap normal completion */}
+          <button
+            onClick={() => onTimeExpired(session.id)}
+            title="Süresi Bitti — tek tıkla normal sonlandır"
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-all active:scale-95 shadow-sm"
+          >
+            <Clock className="w-3 h-3" />
+            Süresi Bitti
+          </button>
+
+          {/* Manuel Çıkış — opens reason modal */}
           <button
             onClick={() => onExit(session.id)}
+            title="Manuel Çıkış — sebep seç"
             className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-red-100 dark:hover:bg-red-500/15 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg text-xs font-semibold transition-all active:scale-95"
           >
             <LogOut className="w-3 h-3" />
-            Çıkış
+            Manuel Çıkış
           </button>
 
           {/* Reprint labels */}

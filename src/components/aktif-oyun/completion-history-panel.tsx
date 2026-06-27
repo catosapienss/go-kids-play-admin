@@ -17,12 +17,12 @@ import { cn } from "@/lib/utils"
 
 interface Props { onClose: () => void }
 
-type FilterKey = "all" | "early" | "normal"
+type FilterKey = "all" | "completed" | "manual"
 
 const FILTER_LABELS: Record<FilterKey, string> = {
-  all:    "Tümü",
-  early:  "Erken Çıkış",
-  normal: "Normal",
+  all:       "Tümü",
+  completed: "Normal Tamamlanan",
+  manual:    "Manuel Sonlandırılan",
 }
 
 export function CompletionHistoryPanel({ onClose }: Props) {
@@ -34,8 +34,14 @@ export function CompletionHistoryPanel({ onClose }: Props) {
   const reload = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const data = await fetchCompletionLog({ limit: 100, filter })
-      setRows(data)
+      const data = await fetchCompletionLog({ limit: 100 })
+      const filtered = data.filter((r) => {
+        if (filter === "all")       return true
+        if (filter === "completed") return r.end_reason === "time_expired" || (!r.end_reason && !r.early_exit)
+        if (filter === "manual")    return r.end_reason && r.end_reason !== "time_expired"
+        return true
+      })
+      setRows(filtered)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Yüklenemedi")
     } finally {
@@ -78,8 +84,10 @@ export function CompletionHistoryPanel({ onClose }: Props) {
               className={cn(
                 "text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors",
                 filter === k
-                  ? k === "early"
+                  ? k === "manual"
                     ? "bg-amber-600 text-white"
+                    : k === "completed"
+                    ? "bg-emerald-600 text-white"
                     : "bg-violet-600 text-white"
                   : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700",
               )}
@@ -129,21 +137,26 @@ function CompletionCard({ row }: { row: CompletionLogRow }) {
     ? END_REASON_LABELS[row.end_reason as keyof typeof END_REASON_LABELS] ?? row.end_reason
     : "—"
 
+  // Normal completion = either the new "time_expired" reason, or legacy rows
+  // with no reason and no early_exit flag (older end_session() calls).
+  const isNormal = row.end_reason === "time_expired" || (!row.end_reason && !row.early_exit)
+  const statusLabel = isNormal ? "Tamamlandı (Normal)" : "Manuel Çıkış"
+
   return (
     <div className={cn(
       "rounded-xl border bg-white dark:bg-slate-900 p-3 space-y-2",
-      row.early_exit
-        ? "border-amber-200 dark:border-amber-500/30"
-        : "border-slate-200 dark:border-slate-800",
+      isNormal
+        ? "border-emerald-200 dark:border-emerald-500/30"
+        : "border-amber-200 dark:border-amber-500/30",
     )}>
       <div className="flex items-start gap-2.5">
         <div className={cn(
           "w-7 h-7 rounded-lg flex items-center justify-center text-white flex-shrink-0",
-          row.early_exit
-            ? "bg-gradient-to-br from-amber-500 to-orange-500"
-            : "bg-gradient-to-br from-emerald-500 to-green-600",
+          isNormal
+            ? "bg-gradient-to-br from-emerald-500 to-green-600"
+            : "bg-gradient-to-br from-amber-500 to-orange-500",
         )}>
-          {row.early_exit ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+          {isNormal ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
@@ -156,11 +169,11 @@ function CompletionCard({ row }: { row: CompletionLogRow }) {
         </div>
         <span className={cn(
           "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full",
-          row.early_exit
-            ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+          isNormal
+            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+            : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
         )}>
-          {row.early_exit ? "Erken Çıkış" : "Tamamlandı"}
+          {statusLabel}
         </span>
       </div>
 
@@ -186,7 +199,7 @@ function CompletionCard({ row }: { row: CompletionLogRow }) {
         </p>
       )}
 
-      {plannedEnd && actualEnd && row.early_exit && (
+      {plannedEnd && actualEnd && row.early_exit && !isNormal && (
         <p className="text-[10px] text-amber-700 dark:text-amber-300">
           Planlanan {plannedEnd.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })} → {Math.round((plannedEnd.getTime() - actualEnd.getTime()) / 60000)} dk erken bitti
         </p>
