@@ -15,6 +15,7 @@ export interface AppSettings {
   staff:          StaffSettings
   printer:        PrinterSettings
   pricing:        PricingSettings
+  discounts:      DiscountSettings
 }
 
 // ─── Section shapes ──────────────────────────────────────────────────────────
@@ -99,6 +100,20 @@ export interface PricingSettings {
   unlimitedUpgrade: number  // convert-to-unlimited upgrade price (₺)
 }
 
+// ─── Discount permissions ────────────────────────────────────────────────────
+//
+// Per-role caps for the in-cashier discount feature. Admin & super_admin are
+// always unlimited (enforced in the service, not configurable here).
+//
+//   staffMaxDiscount   — max ₺ a staff user may grant in a single transaction
+//   managerMaxDiscount — max ₺ a manager user may grant in a single transaction
+//   allowPercentDiscount — if false, only fixed-₺ discounts are offered
+export interface DiscountSettings {
+  staffMaxDiscount:      number
+  managerMaxDiscount:    number
+  allowPercentDiscount:  boolean
+}
+
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -167,12 +182,17 @@ export const DEFAULT_SETTINGS: AppSettings = {
     extension60Min:   350,
     unlimitedUpgrade: 400,
   },
+  discounts: {
+    staffMaxDiscount:     50,
+    managerMaxDiscount:   200,
+    allowPercentDiscount: true,
+  },
 }
 
 // ─── Section metadata for the UI ─────────────────────────────────────────────
 
 export type SettingsSection =
-  | "general" | "packages" | "operations" | "tv" | "payments" | "notifications" | "staff" | "printer" | "pricing"
+  | "general" | "packages" | "operations" | "tv" | "payments" | "notifications" | "staff" | "printer" | "pricing" | "discounts"
 
 export const SECTION_LABEL: Record<SettingsSection, string> = {
   general:       "Genel",
@@ -184,6 +204,7 @@ export const SECTION_LABEL: Record<SettingsSection, string> = {
   staff:         "Personel",
   printer:       "Yazıcı",
   pricing:       "Süre Uzatma Fiyatları",
+  discounts:     "İndirim Yetkileri",
 }
 
 export const SECTION_HINT: Record<SettingsSection, string> = {
@@ -196,4 +217,5 @@ export const SECTION_HINT: Record<SettingsSection, string> = {
   staff:         "Otomatik kilit, vardiya kuralları",
   printer:       "XP-470B etiket boyutu, otomatik yazdırma",
   pricing:       "+30 / +60 dk ve sınırsız yükseltme tarifesi",
+  discounts:     "Personel / yönetici indirim limitleri",
 }

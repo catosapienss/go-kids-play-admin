@@ -13,7 +13,7 @@ import {
 } from "@/types/settings"
 import {
   SectionGeneral, SectionPackages, SectionOperations, SectionTv,
-  SectionPayments, SectionNotifications, SectionStaff, SectionPrinter, SectionPricing,
+  SectionPayments, SectionNotifications, SectionStaff, SectionPrinter, SectionPricing, SectionDiscounts,
 } from "@/components/ayarlar/sections"
 
 // ─── /ayarlar — Settings ─────────────────────────────────────────────────────
@@ -112,6 +112,7 @@ export default function AyarlarPage() {
               {active === "staff"         && <SectionStaff />}
               {active === "printer"       && <SectionPrinter />}
               {active === "pricing"       && <SectionPricing />}
+              {active === "discounts"     && <SectionDiscounts />}
             </div>
           </main>
         </div>

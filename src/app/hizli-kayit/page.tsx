@@ -6,6 +6,7 @@ import { CustomerPanel } from "@/components/hizli-kayit/customer-panel"
 import { FastChildrenInput } from "@/components/hizli-kayit/fast-children-input"
 import { SessionDurationPicker } from "@/components/hizli-kayit/session-duration-picker"
 import { InlineRetailPanel } from "@/components/hizli-kayit/inline-retail-panel"
+import { DiscountPicker } from "@/components/hizli-kayit/discount-picker"
 import { PaymentPanel } from "@/components/hizli-kayit/payment-panel"
 import { ActionBar } from "@/components/hizli-kayit/action-bar"
 import { SuccessModal } from "@/components/hizli-kayit/success-modal"
@@ -14,6 +15,11 @@ import type { LookupResult } from "@/lib/services/entry-code.service"
 import { ShiftClockCard } from "@/components/personel/shift-clock-card"
 import { createChild, createSession, createPayment, deductWallet } from "@/lib/services/pos.service"
 import { checkoutSale } from "@/lib/services/retail"
+import {
+  recordDiscount, computeDiscountAmount, maxDiscountForRole,
+  type DiscountType, type DiscountReason,
+} from "@/lib/services/discount.service"
+import { useSettingsSection } from "@/lib/settings/settings-store"
 import type { CartLine } from "@/types/retail"
 import { useAuth } from "@/contexts/auth-context"
 import { useSessionStore } from "@/lib/stores/session-store"
@@ -80,10 +86,19 @@ export default function HizliKayitPage() {
   const [globalDuration,  setGlobalDuration]  = useState<DurationOption | null>(null)
   const [globalUnitPrice, setGlobalUnitPrice] = useState<number>(0)
   const [retailCart,      setRetailCart]      = useState<CartLine[]>([])
+  const [discountType,    setDiscountType]    = useState<DiscountType>("fixed")
+  const [discountValue,   setDiscountValue]   = useState<number>(0)
+  const [discountReason,  setDiscountReason]  = useState<DiscountReason | null>(null)
 
-  const gameTotal   = children.length * globalUnitPrice
-  const retailTotal = retailCart.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
-  const total       = gameTotal + retailTotal
+  const discountLimits = useSettingsSection("discounts")
+
+  const gameTotal    = children.length * globalUnitPrice
+  const retailTotal  = retailCart.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
+  const grossTotal   = gameTotal + retailTotal
+  const rawDiscount  = computeDiscountAmount(discountType, discountValue, grossTotal)
+  const userCap      = maxDiscountForRole(user?.role, discountLimits)
+  const discount     = Math.min(rawDiscount, isFinite(userCap) ? userCap : rawDiscount)
+  const total        = Math.max(0, grossTotal - discount)
   const paid = payments.reduce((sum, p) => sum + p.amount, 0)
   const isReadyToStart =
     selectedCustomer !== null &&
@@ -190,6 +205,9 @@ export default function HizliKayitPage() {
       const isUUID = (id: string) =>
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)
 
+      // Capture the first created session so the discount row can reference it.
+      let firstSessionId: string | null = null
+
       // Split payments proportionally across children so each session's payment
       // record reflects only that child's share. Without this, a 2-child group
       // would double-count revenue in day-end reconciliation.
@@ -233,6 +251,24 @@ export default function HizliKayitPage() {
           cash_amount:   split.cash,
           card_amount:   split.card,
           wallet_amount: split.wallet,
+        })
+
+        if (!firstSessionId) firstSessionId = session.id
+      }
+
+      // Audit the discount once per transaction (anchored to first session).
+      // Fire-and-forget — failure does not roll back sessions/payments.
+      if (discount > 0) {
+        void recordDiscount({
+          sessionId:     firstSessionId,
+          parentId:      selectedCustomer.id,
+          type:          discountType,
+          value:         discountValue,
+          amount:        discount,
+          baseAmount:    grossTotal,
+          reason:        discountReason,
+          appliedBy:     user?.id ?? null,
+          appliedByName: user?.fullName ?? null,
         })
       }
 
@@ -283,7 +319,7 @@ export default function HizliKayitPage() {
     } finally {
       setIsProcessing(false)
     }
-  }, [isReadyToStart, isProcessing, selectedCustomer, children, payments, retailCart, retailTotal, total, user, refreshSessions])
+  }, [isReadyToStart, isProcessing, selectedCustomer, children, payments, retailCart, retailTotal, total, grossTotal, discount, discountType, discountValue, discountReason, user, refreshSessions])
 
   const handleClear = useCallback(() => {
     setSelectedCustomer(null)
@@ -293,6 +329,9 @@ export default function HizliKayitPage() {
     setGlobalDuration(null)
     setGlobalUnitPrice(0)
     setRetailCart([])
+    setDiscountType("fixed")
+    setDiscountValue(0)
+    setDiscountReason(null)
   }, [])
 
   const handleSuccessClose = useCallback(() => {
@@ -335,6 +374,17 @@ export default function HizliKayitPage() {
               onChange={handlePickGlobalDuration}
             />
             <InlineRetailPanel cart={retailCart} onChange={setRetailCart} />
+            <DiscountPicker
+              baseAmount={grossTotal}
+              type={discountType}
+              value={discountValue}
+              reason={discountReason}
+              onChange={({ type, value, reason }) => {
+                setDiscountType(type)
+                setDiscountValue(value)
+                setDiscountReason(reason)
+              }}
+            />
           </div>
 
           {/* RIGHT: Payment */}
@@ -343,6 +393,7 @@ export default function HizliKayitPage() {
               total={total}
               gameTotal={gameTotal}
               retailTotal={retailTotal}
+              discount={discount}
               payments={payments}
               customer={selectedCustomer}
               onAddPayment={handleAddPayment}

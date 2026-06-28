@@ -18,6 +18,7 @@ import { OrgAnalyticsPanel }      from "@/components/raporlar/org-analytics-pane
 import { StaffPerformancePanel }  from "@/components/raporlar/staff-performance-panel"
 import { DayEndPanel }            from "@/components/raporlar/day-end-panel"
 import { RecentTransactionsPanel } from "@/components/raporlar/recent-transactions-panel"
+import { DiscountsPanel } from "@/components/raporlar/discounts-panel"
 
 // ─── /raporlar — Advanced Reporting & Business Insights ──────────────────────
 //
@@ -84,6 +85,7 @@ export default function RaporlarPage() {
             <div className="space-y-5">
               <RevenueBreakdownChart />
               <RecentTransactionsPanel />
+              <DiscountsPanel limit={50} />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <CustomerInsightsPanel />
                 <StaffPerformancePanel />
@@ -96,6 +98,7 @@ export default function RaporlarPage() {
             <div className="space-y-5">
               <RevenueBreakdownChart />
               <RecentTransactionsPanel limit={100} />
+              <DiscountsPanel limit={100} />
               <PeakHoursHeatmap />
               <DayEndPanel />
             </div>

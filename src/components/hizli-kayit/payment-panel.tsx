@@ -11,6 +11,7 @@ interface PaymentPanelProps {
    *  Oyun / Perakende / Toplam breakdown above the payment grid. */
   gameTotal?:   number
   retailTotal?: number
+  discount?:    number
   payments: PaymentEntry[]
   customer: Customer | null
   onAddPayment: (method: PaymentMethod, amount: number) => void
@@ -74,13 +75,15 @@ export function PaymentPanel({
   total,
   gameTotal,
   retailTotal,
+  discount,
   payments,
   customer,
   onAddPayment,
   onRemovePayment,
   onUpdatePayment,
 }: PaymentPanelProps) {
-  const showBreakdown = (gameTotal ?? 0) > 0 && (retailTotal ?? 0) > 0
+  const discountAmount = discount ?? 0
+  const showBreakdown  = (gameTotal ?? 0) > 0 || (retailTotal ?? 0) > 0 || discountAmount > 0
   const [activeMethod, setActiveMethod] = useState<PaymentMethod | null>(null)
   const [inputAmount, setInputAmount] = useState("")
 
@@ -138,14 +141,24 @@ export function PaymentPanel({
       )}>
         {showBreakdown && (
           <div className={cn("mb-3 space-y-1 text-xs", total > 0 ? "text-white/85" : "text-slate-500")}>
-            <div className="flex items-center justify-between">
-              <span>Oyun</span>
-              <span className="font-semibold tabular-nums">₺{(gameTotal ?? 0).toLocaleString("tr-TR")}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Perakende</span>
-              <span className="font-semibold tabular-nums">₺{(retailTotal ?? 0).toLocaleString("tr-TR")}</span>
-            </div>
+            {(gameTotal ?? 0) > 0 && (
+              <div className="flex items-center justify-between">
+                <span>Oyun</span>
+                <span className="font-semibold tabular-nums">₺{(gameTotal ?? 0).toLocaleString("tr-TR")}</span>
+              </div>
+            )}
+            {(retailTotal ?? 0) > 0 && (
+              <div className="flex items-center justify-between">
+                <span>Perakende</span>
+                <span className="font-semibold tabular-nums">₺{(retailTotal ?? 0).toLocaleString("tr-TR")}</span>
+              </div>
+            )}
+            {discountAmount > 0 && (
+              <div className="flex items-center justify-between text-amber-200">
+                <span>İndirim</span>
+                <span className="font-semibold tabular-nums">−₺{discountAmount.toLocaleString("tr-TR")}</span>
+              </div>
+            )}
             <div className="h-px bg-white/15" />
           </div>
         )}

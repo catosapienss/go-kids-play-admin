@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getCustomerProfile } from "@/lib/services/customer.service"
+import { sumDiscountsForParent } from "@/lib/services/discount.service"
 import {
   type CustomerProfile, type CustomerSummary,
   TIER_LABEL, computeTier,
@@ -52,6 +53,7 @@ export function CustomerProfileSheet({ parentId, open, onClose }: Props) {
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tags, setTags] = useState<string[]>([])
+  const [discountTotal, setDiscountTotal] = useState<number>(0)
 
   const canEditTags = !!user && ["super_admin", "admin", "manager"].includes(user.role)
 
@@ -71,6 +73,10 @@ export function CustomerProfileSheet({ parentId, open, onClose }: Props) {
         }
         setProfile(p)
         setTags(p.summary.tags)
+        // Async — keep the sheet snappy; the value just lights up once it loads.
+        sumDiscountsForParent(parentId as string).then((n) => {
+          if (!cancelled) setDiscountTotal(n)
+        })
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Yüklenemedi")
       }
@@ -161,6 +167,16 @@ export function CustomerProfileSheet({ parentId, open, onClose }: Props) {
                 <Kpi label="Cüzdan" value={fmtMoney(summary!.walletBalance)} icon={Wallet} tone="blue" />
                 <Kpi label="Çocuk"   value={summary!.childCount} icon={Baby} tone="amber" />
               </div>
+
+              {/* Lifetime discounts */}
+              {discountTotal > 0 && (
+                <div className="rounded-xl border border-amber-200/70 dark:border-amber-700/50 bg-amber-50/60 dark:bg-amber-500/[0.05] px-4 py-2.5 flex items-center gap-2 text-xs">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">%</span>
+                  <span className="text-amber-700 dark:text-amber-300 font-semibold">
+                    Toplam indirim · {fmtMoney(discountTotal)}
+                  </span>
+                </div>
+              )}
 
               {/* Refund warning if any */}
               {summary!.refundCount > 0 && (

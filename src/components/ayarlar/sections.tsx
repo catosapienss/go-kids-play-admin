@@ -486,3 +486,43 @@ export function SectionPricing() {
     </>
   )
 }
+
+// ─── Section: İndirim Yetkileri ─────────────────────────────────────────────
+
+export function SectionDiscounts() {
+  const { settings, update, replace } = useSettings()
+  const s = settings.discounts
+  const [saved, flag] = useSavedFlag()
+  const up = (patch: Partial<typeof s>) => { update("discounts", patch); flag() }
+
+  return (
+    <>
+      <SectionHeader
+        title="İndirim Yetkileri"
+        hint="Hızlı Kayıt ekranında uygulanan indirimler için kullanıcı rolüne göre limit"
+      />
+
+      <FieldGroup title="Rol Bazlı Maksimum İndirim">
+        <Field label="Personel" inline hint="Tek işlemde personelin uygulayabileceği maksimum ₺ indirim">
+          <NumberInput value={s.staffMaxDiscount} onChange={(v) => up({ staffMaxDiscount: v })}
+                       min={0} max={5000} step={10} suffix="₺" />
+        </Field>
+        <Field label="Yönetici (Manager)" inline hint="Tek işlemde yöneticinin uygulayabileceği maksimum ₺ indirim">
+          <NumberInput value={s.managerMaxDiscount} onChange={(v) => up({ managerMaxDiscount: v })}
+                       min={0} max={20000} step={10} suffix="₺" />
+        </Field>
+        <Field label="Admin / Sahip" inline hint="Sınırsız — limit uygulanmaz">
+          <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">∞ Sınırsız</span>
+        </Field>
+      </FieldGroup>
+
+      <FieldGroup title="Genel">
+        <Field label="Yüzde indirim aktif" inline hint="Kapatırsan kasada sadece sabit ₺ seçeneği görünür">
+          <Toggle checked={s.allowPercentDiscount} onChange={(v) => up({ allowPercentDiscount: v })} />
+        </Field>
+      </FieldGroup>
+
+      <SaveBar saved={saved} onReset={() => replace("discounts", DEFAULT_SETTINGS.discounts)} />
+    </>
+  )
+}
