@@ -95,6 +95,7 @@ export const END_REASON_LABELS: Record<EndReason, string> = {
 // list because it has its own one-tap action; `manual_exit` is the catch-all
 // inside the modal alongside the granular ones.
 export const MANUAL_END_REASONS: EndReason[] = [
+  "time_expired",
   "customer_left_early",
   "parent_request",
   "child_request",
