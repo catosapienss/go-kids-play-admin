@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import {
-  Settings as SettingsIcon, Package, ShieldCheck, Tv, CreditCard, Bell, Users, Printer, Zap,
+  Settings as SettingsIcon, Package, ShieldCheck, Tv, CreditCard, Bell, Users, Printer, Zap, Percent,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -35,9 +35,10 @@ const TAB_ICONS: Record<SettingsSection, LucideIcon> = {
   staff:         Users,
   printer:       Printer,
   pricing:       Zap,
+  discounts:     Percent,
 }
 
-const TABS: SettingsSection[] = ["general", "packages", "pricing", "operations", "tv", "payments", "notifications", "staff", "printer"]
+const TABS: SettingsSection[] = ["general", "packages", "pricing", "discounts", "operations", "tv", "payments", "notifications", "staff", "printer"]
 
 export default function AyarlarPage() {
   const [active, setActive] = useState<SettingsSection>("general")
