@@ -20,6 +20,7 @@ import {
 // customer is created. Safe to spam during printer setup.
 
 const DEFAULT_BASE = {
+  queueNumber:   "001",
   childName:     "ARELA",
   startTime:     "14:43",
   endTime:       "15:43",
@@ -61,20 +62,19 @@ export default function PrinterTestPage() {
                box-shadow:0 1px 2px rgba(0,0,0,0.06); overflow:hidden;
                width:${printer.labelWidthMm}mm; height:${printer.labelHeightMm}mm;
                font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
-    .preview .label { position:relative; width:100%; height:100%; padding:2mm 2.5mm 1.5mm;
+    .preview .label { position:relative; width:100%; height:100%; padding:1.5mm 2mm;
                       display:flex; flex-direction:column; align-items:center;
-                      justify-content:flex-start; text-align:center; box-sizing:border-box; }
-    .preview .logo  { position:absolute; top:1.5mm; left:2mm; width:9mm; height:9mm; object-fit:contain; }
-    .preview .brand { width:100%; font-size:8pt; font-weight:900; letter-spacing:0.08em;
-                      text-transform:uppercase; text-align:right; line-height:1; }
-    .preview .name  { margin-top:1.5mm; font-size:26pt; font-weight:900; line-height:0.95;
+                      justify-content:space-between; text-align:center; box-sizing:border-box; }
+    .preview .queue { font-size:36pt; font-weight:900; line-height:0.9;
+                      letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
+    .preview .name  { font-size:24pt; font-weight:900; line-height:0.95;
                       text-transform:uppercase; letter-spacing:0.04em; word-break:break-word; }
-    .preview .times { margin-top:1.5mm; font-size:19pt; font-weight:900; line-height:1.05;
-                      font-variant-numeric:tabular-nums; letter-spacing:0.02em; }
-    .preview .duration { margin-top:1mm; font-size:15pt; font-weight:800;
-                         text-transform:uppercase; letter-spacing:0.05em; }
-    .preview .phone { margin-top:auto; padding-top:1mm; font-size:13pt; font-weight:900;
-                      letter-spacing:0.03em; font-variant-numeric:tabular-nums; }
+    .preview .times { font-size:17pt; font-weight:900; line-height:1;
+                      font-variant-numeric:tabular-nums; letter-spacing:0.01em; }
+    .preview .duration { font-size:14pt; font-weight:800;
+                         text-transform:uppercase; letter-spacing:0.05em; line-height:1; }
+    .preview .phone { font-size:12pt; font-weight:900;
+                      letter-spacing:0.03em; font-variant-numeric:tabular-nums; line-height:1; }
   `
 
   return (
@@ -103,6 +103,9 @@ export default function PrinterTestPage() {
           busy={busy === "child"}
           disabled={!!busy}
         >
+          <LabeledInput label="Sıra No" value={child.queueNumber}
+            onChange={(v) => { setChild({ ...child, queueNumber: v }); setParent({ ...parent, queueNumber: v }) }}
+            placeholder="001" />
           <LabeledInput label="Çocuk adı" value={child.childName}
             onChange={(v) => { const next = { ...child, childName: v }; setChild(next); setParent({ ...parent, childName: v }) }}
             icon={<User className="w-3.5 h-3.5"/>} />

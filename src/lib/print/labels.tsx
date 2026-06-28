@@ -4,29 +4,31 @@
 //
 // Builds an isolated, print-only HTML document and triggers window.print()
 // in a hidden iframe. Operator picks the XPrinter XP-470B from the browser's
-// print dialog (no USB / driver work — yet).
+// print dialog.
 //
-// Two label shapes:
+// Layout (BOTH child + parent labels, identical):
 //
-//   • Child label:  child name (huge) · start–end time · duration · session #
-//   • Parent label: child name · parent name · phone · session #
+//   ┌──────────────────────────┐
+//   │          #001            │  ← queue number (huge)
+//   │                          │
+//   │          ALYA            │  ← child name
+//   │                          │
+//   │     14:32 — 15:32        │  ← time range
+//   │         60 DK            │  ← duration
+//   │     0532 542 52 05       │  ← phone (bottom)
+//   └──────────────────────────┘
 //
-// Both labels share a high-contrast monochrome layout sized from PrinterSettings
-// (labelWidthMm × labelHeightMm) so they fit a 40×60mm / 80×40mm thermal roll.
+// No logo. No business name. Centred. Sized to the active PrinterSettings.
 
 import type { PrinterSettings } from "@/types/settings"
 
-// Unified label shape: child + parent labels carry the same data so the
-// printout looks identical regardless of which button fires. Keeping the two
-// separate exports preserves backwards-compatibility with existing call sites
-// (PrintButtons, ReprintLabelsButton) — they just construct the same fields.
-
 interface BaseLabelData {
+  queueNumber:   string   // "001", "002" … resets per day, see queue-number.ts
   childName:     string
   startTime:     string   // "HH:mm"
   endTime:       string   // "HH:mm" or "Sınırsız"
-  durationLabel: string   // "30 DK" / "60 DK" / "SINIRSIZ" / ...
-  companyPhone:  string   // shop / company phone — e.g. "+90 532 542 5205"
+  durationLabel: string   // "30 DK" / "60 DK" / "SINIRSIZ"
+  companyPhone:  string   // shop phone
 }
 
 export type ChildLabelData  = BaseLabelData
@@ -50,45 +52,30 @@ function baseCss(printer: PrinterSettings): string {
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: #fff; color: #000; }
     body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+
     .label {
       width: ${w}mm;
       height: ${h}mm;
-      padding: 2mm 2.5mm 1.5mm;
+      padding: 1.5mm 2mm;
       page-break-after: always;
-      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
+      justify-content: space-between;
       text-align: center;
       overflow: hidden;
     }
     .label:last-child { page-break-after: auto; }
 
-    /* Logo — upper-left small mark, reserved column does NOT shrink body */
-    .label .logo {
-      position: absolute;
-      top: 1.5mm;
-      left: 2mm;
-      width: 9mm;
-      height: 9mm;
-      object-fit: contain;
-    }
-
-    /* Brand strip — small top header so labels are recognisable at a glance */
-    .label .brand {
-      width: 100%;
-      font-size: 8pt;
+    .label .queue {
+      font-size: 36pt;
       font-weight: 900;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      text-align: right;
-      line-height: 1;
+      line-height: 0.9;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
     }
-
     .label .name {
-      margin-top: 1.5mm;
-      font-size: 26pt;          /* spec: 24–28pt */
+      font-size: 24pt;
       font-weight: 900;
       line-height: 0.95;
       text-transform: uppercase;
@@ -96,27 +83,25 @@ function baseCss(printer: PrinterSettings): string {
       word-break: break-word;
     }
     .label .times {
-      margin-top: 1.5mm;
-      font-size: 19pt;          /* spec: 18–20pt */
+      font-size: 17pt;
       font-weight: 900;
-      line-height: 1.05;
+      line-height: 1;
       font-variant-numeric: tabular-nums;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.01em;
     }
     .label .duration {
-      margin-top: 1mm;
-      font-size: 15pt;          /* spec: 14–16pt */
+      font-size: 14pt;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      line-height: 1;
     }
     .label .phone {
-      margin-top: auto;          /* pin phone to the bottom of the label */
-      padding-top: 1mm;
-      font-size: 13pt;          /* spec: 12–14pt */
+      font-size: 12pt;
       font-weight: 900;
       letter-spacing: 0.03em;
       font-variant-numeric: tabular-nums;
+      line-height: 1;
     }
 
     @media screen {
@@ -133,27 +118,13 @@ function baseCss(printer: PrinterSettings): string {
 
 // ─── HTML builders ───────────────────────────────────────────────────────────
 
-// Unified label layout used by BOTH the child and parent prints. Same data,
-// same dimensions, same typography — printing identical sticker pairs is
-// faster on the floor than asking the operator to remember which copy goes
-// where during busy hours.
-//
-//   [logo]            GO KIDS PLAY
-//
-//                  ARDA
-//
-//             14:43 - 15:43
-//                  60 DK
-//
-//             +90 532 542 5205
 function renderUnifiedLabel(data: BaseLabelData): string {
   const timeRange = data.endTime
-    ? `${escapeHtml(data.startTime)} - ${escapeHtml(data.endTime)}`
+    ? `${escapeHtml(data.startTime)} — ${escapeHtml(data.endTime)}`
     : escapeHtml(data.startTime)
   return `
     <div class="label">
-      <img class="logo" src="/brand/logo-mark.png" alt="" onerror="this.style.display='none'">
-      <div class="brand">GO KIDS PLAY</div>
+      <div class="queue">#${escapeHtml(data.queueNumber || "—")}</div>
       <div class="name">${escapeHtml(data.childName)}</div>
       <div class="times">${timeRange}</div>
       <div class="duration">${escapeHtml(data.durationLabel)}</div>
@@ -176,11 +147,6 @@ export type LabelJob =
   | { kind: "child";  data: ChildLabelData }
   | { kind: "parent"; data: ParentLabelData }
 
-/**
- * Open a hidden iframe with the given labels and call print() inside it.
- * The browser's native print dialog appears; operator selects the XP-470B.
- * Returns a promise that resolves once the iframe is removed.
- */
 export function printLabels(jobs: LabelJob[], printer: PrinterSettings): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve()
   if (jobs.length === 0) return Promise.resolve()
@@ -221,13 +187,7 @@ export function printLabels(jobs: LabelJob[], printer: PrinterSettings): Promise
     iframe.onload = () => {
       const w = iframe.contentWindow
       if (!w) return finish()
-      try {
-        w.focus()
-        w.print()
-      } catch {
-        // Some browsers throw if the iframe was already torn down
-      }
-      // Most browsers fire afterprint reliably; fall back to a timer.
+      try { w.focus(); w.print() } catch { /* swallow */ }
       w.addEventListener?.("afterprint", finish, { once: true })
       setTimeout(finish, 5000)
     }

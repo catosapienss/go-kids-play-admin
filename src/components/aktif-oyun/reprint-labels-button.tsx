@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { useSettings, useSettingsSection } from "@/lib/settings/settings-store"
 import { printLabels, type LabelJob, type ChildLabelData, type ParentLabelData } from "@/lib/print/labels"
+import { getOrAssignSessionQueueNumber } from "@/lib/print/queue-number"
 import type { ActiveSession } from "@/types/aktif-oyun"
 
 // ─── Reprint Labels — active session reprint trigger ─────────────────────────
@@ -49,9 +50,8 @@ function buildJobs(session: ActiveSession, companyPhone: string): { child: Label
     ? "Sınırsız"
     : `${session.totalMinutes} Dakika`
 
-  // Child + parent labels now share the same shape (and the same printed
-  // output). We keep both jobs so reprint counts stay accurate.
   const shared: ChildLabelData = {
+    queueNumber:   getOrAssignSessionQueueNumber(session.id),
     childName:     (session.childName || "—").trim(),
     startTime:     session.entryTime,
     endTime:       endStr,

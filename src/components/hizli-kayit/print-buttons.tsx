@@ -9,6 +9,7 @@ import type { ChildEntry, Customer } from "@/types/hizli-kayit"
 import {
   printLabels, type LabelJob, type ChildLabelData, type ParentLabelData,
 } from "@/lib/print/labels"
+import { nextQueueNumber } from "@/lib/print/queue-number"
 
 interface Props {
   customer:      Customer
@@ -44,12 +45,13 @@ function formatHM(d: Date): string {
 // Child + parent labels carry identical data — they print identical
 // stickers on purpose so staff doesn't have to keep track of which copy
 // is which during busy hours.
-function buildSharedData(child: ChildEntry, companyPhone: string): ChildLabelData {
+function buildSharedData(child: ChildEntry, companyPhone: string, queueNumber: string): ChildLabelData {
   const now = new Date()
   const isFree  = child.duration === "free" || child.duration == null
   const minutes = typeof child.duration === "number" ? child.duration : 0
   const end     = isFree ? null : new Date(now.getTime() + minutes * 60_000)
   return {
+    queueNumber,
     childName:     (child.name || "—").trim(),
     startTime:     formatHM(now),
     endTime:       end ? formatHM(end) : "SINIRSIZ",
@@ -58,12 +60,16 @@ function buildSharedData(child: ChildEntry, companyPhone: string): ChildLabelDat
   }
 }
 
-function buildChildJobs(kids: ChildEntry[], companyPhone: string): LabelJob[] {
-  return kids.map<LabelJob>((child) => ({ kind: "child",  data: buildSharedData(child, companyPhone) }))
-}
-
-function buildParentJobs(kids: ChildEntry[], companyPhone: string): LabelJob[] {
-  return kids.map<LabelJob>((child) => ({ kind: "parent", data: buildSharedData(child, companyPhone) as ParentLabelData }))
+/** Build child + parent jobs that SHARE a queue number per child. */
+function buildAllJobs(kids: ChildEntry[], companyPhone: string, numbers: string[]): {
+  childJobs:  LabelJob[]
+  parentJobs: LabelJob[]
+} {
+  const shared = kids.map((c, i) => buildSharedData(c, companyPhone, numbers[i]))
+  return {
+    childJobs:  shared.map((data): LabelJob => ({ kind: "child",  data })),
+    parentJobs: shared.map((data): LabelJob => ({ kind: "parent", data: data as ParentLabelData })),
+  }
 }
 
 export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _sessionNumber }: Props) {
@@ -73,8 +79,18 @@ export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _se
   const [busy, setBusy] = useState<"child" | "parent" | "both" | null>(null)
   const autoFiredRef = useRef(false)
 
-  const childJobs  = useMemo(() => buildChildJobs(kidsList, companyPhone),  [kidsList, companyPhone])
-  const parentJobs = useMemo(() => buildParentJobs(kidsList, companyPhone), [kidsList, companyPhone])
+  // Assign one queue number per child, ONCE for the lifetime of this success
+  // modal. Multiple reprints (e.g. operator hits Çocuk then Veli) share the
+  // same number so the parent/child stickers stay paired.
+  const queueNumbers = useMemo(
+    () => kidsList.map(() => nextQueueNumber()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [kidsList.length],
+  )
+  const { childJobs, parentJobs } = useMemo(
+    () => buildAllJobs(kidsList, companyPhone, queueNumbers),
+    [kidsList, companyPhone, queueNumbers],
+  )
 
   async function run(which: "child" | "parent" | "both") {
     if (busy) return
