@@ -11,6 +11,9 @@ interface ActionBarProps {
   onCancel: () => void
   onClear: () => void
   onQr: () => void
+  /** Optional slot rendered between the Süre Uzat and QR buttons (used for
+   *  the İndirim popover trigger). */
+  discountSlot?: React.ReactNode
 }
 
 export function ActionBar({
@@ -21,6 +24,7 @@ export function ActionBar({
   onCancel,
   onClear,
   onQr,
+  discountSlot,
 }: ActionBarProps) {
   return (
     <div className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
@@ -53,6 +57,7 @@ export function ActionBar({
           label="Süre Uzat"
           className="border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10"
         />
+        {discountSlot}
         <ActionButton
           onClick={onQr}
           icon={QrCode}

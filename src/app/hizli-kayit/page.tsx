@@ -6,7 +6,7 @@ import { CustomerPanel } from "@/components/hizli-kayit/customer-panel"
 import { FastChildrenInput } from "@/components/hizli-kayit/fast-children-input"
 import { SessionDurationPicker } from "@/components/hizli-kayit/session-duration-picker"
 import { InlineRetailPanel } from "@/components/hizli-kayit/inline-retail-panel"
-import { DiscountPicker } from "@/components/hizli-kayit/discount-picker"
+import { DiscountActionButton } from "@/components/hizli-kayit/discount-action-button"
 import { PaymentPanel } from "@/components/hizli-kayit/payment-panel"
 import { ActionBar } from "@/components/hizli-kayit/action-bar"
 import { SuccessModal } from "@/components/hizli-kayit/success-modal"
@@ -374,17 +374,6 @@ export default function HizliKayitPage() {
               onChange={handlePickGlobalDuration}
             />
             <InlineRetailPanel cart={retailCart} onChange={setRetailCart} />
-            <DiscountPicker
-              baseAmount={grossTotal}
-              type={discountType}
-              value={discountValue}
-              reason={discountReason}
-              onChange={({ type, value, reason }) => {
-                setDiscountType(type)
-                setDiscountValue(value)
-                setDiscountReason(reason)
-              }}
-            />
           </div>
 
           {/* RIGHT: Payment */}
@@ -412,6 +401,20 @@ export default function HizliKayitPage() {
           onCancel={handleClear}
           onClear={handleClear}
           onQr={() => {}}
+          discountSlot={
+            <DiscountActionButton
+              baseAmount={grossTotal}
+              amount={discount}
+              type={discountType}
+              value={discountValue}
+              reason={discountReason}
+              onChange={({ type, value, reason }) => {
+                setDiscountType(type)
+                setDiscountValue(value)
+                setDiscountReason(reason)
+              }}
+            />
+          }
         />
       </div>
 
