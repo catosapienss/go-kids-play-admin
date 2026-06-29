@@ -44,6 +44,28 @@ function escapeHtml(input: string): string {
     .replaceAll('"', "&quot;")
 }
 
+/**
+ * Format a Turkish business phone into the canonical
+ *   +90 (532) 542 52 05
+ * style the labels print at the bottom. Tolerant of arbitrary input:
+ * digits are extracted and re-grouped; non-Turkish numbers fall through
+ * unchanged so we never mangle them.
+ */
+function formatLabelPhone(raw: string): string {
+  if (!raw) return ""
+  const digits = raw.replace(/\D/g, "")
+  // Normalise: drop the leading 90 if present, or the leading 0.
+  let local = digits
+  if (local.startsWith("90") && local.length === 12) local = local.slice(2)
+  else if (local.startsWith("0") && local.length === 11) local = local.slice(1)
+  if (local.length !== 10) return raw          // Not a TR number → pass through.
+  const area = local.slice(0, 3)
+  const a    = local.slice(3, 6)
+  const b    = local.slice(6, 8)
+  const c    = local.slice(8, 10)
+  return `+90 (${area}) ${a} ${b} ${c}`
+}
+
 function baseCss(printer: PrinterSettings): string {
   const w = printer.labelWidthMm
   const h = printer.labelHeightMm
@@ -128,7 +150,7 @@ function renderUnifiedLabel(data: BaseLabelData): string {
       <div class="name">${escapeHtml(data.childName)}</div>
       <div class="times">${timeRange}</div>
       <div class="duration">${escapeHtml(data.durationLabel)}</div>
-      <div class="phone">${escapeHtml(data.companyPhone || "")}</div>
+      <div class="phone">${escapeHtml(formatLabelPhone(data.companyPhone || ""))}</div>
     </div>
   `
 }
@@ -155,11 +177,16 @@ export function printLabels(jobs: LabelJob[], printer: PrinterSettings): Promise
     j.kind === "child" ? renderChildLabel(j.data) : renderParentLabel(j.data),
   ).join("\n")
 
+  // Title is a single space (not empty) so Chrome doesn't fall back to the URL
+  // in the print-dialog header. Combined with @page margin:0 the operator can
+  // turn off "Headers and footers" in the print dialog for a fully clean
+  // sticker — but even with it on, the top-left header now reads " " rather
+  // than the timestamp + filename pair.
   const html = `<!doctype html>
 <html lang="tr">
 <head>
   <meta charset="utf-8">
-  <title>Etiket — ${escapeHtml(printer.printerName || "XP-470B")}</title>
+  <title> </title>
   <style>${baseCss(printer)}</style>
 </head>
 <body>${body}</body>
