@@ -90,36 +90,36 @@ function baseCss(printer: PrinterSettings): string {
     .label:last-child { page-break-after: auto; }
 
     .label .queue {
-      font-size: 36pt;
+      font-size: 26pt;
       font-weight: 900;
-      line-height: 0.9;
+      line-height: 0.95;
       letter-spacing: -0.02em;
       font-variant-numeric: tabular-nums;
     }
     .label .name {
-      font-size: 24pt;
+      font-size: 18pt;
       font-weight: 900;
-      line-height: 0.95;
+      line-height: 1;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.03em;
       word-break: break-word;
     }
     .label .times {
-      font-size: 17pt;
+      font-size: 13pt;
       font-weight: 900;
       line-height: 1;
       font-variant-numeric: tabular-nums;
       letter-spacing: 0.01em;
     }
     .label .duration {
-      font-size: 14pt;
+      font-size: 11pt;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       line-height: 1;
     }
     .label .phone {
-      font-size: 12pt;
+      font-size: 11pt;
       font-weight: 900;
       letter-spacing: 0.03em;
       font-variant-numeric: tabular-nums;
@@ -144,12 +144,20 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   const timeRange = data.endTime
     ? `${escapeHtml(data.startTime)} — ${escapeHtml(data.endTime)}`
     : escapeHtml(data.startTime)
+
+  // Avoid the duplicate "Sınırsız" line: when the time range already
+  // ends with Sınırsız/SINIRSIZ, the duration row would just repeat it
+  // and push the phone off the bottom of the 40mm label.
+  const dur = (data.durationLabel || "").trim()
+  const end = (data.endTime || "").trim().toUpperCase()
+  const hideDuration = !dur || end === "SINIRSIZ" || dur.toUpperCase() === "SINIRSIZ"
+
   return `
     <div class="label">
       <div class="queue">#${escapeHtml(data.queueNumber || "—")}</div>
       <div class="name">${escapeHtml(data.childName)}</div>
       <div class="times">${timeRange}</div>
-      <div class="duration">${escapeHtml(data.durationLabel)}</div>
+      ${hideDuration ? "" : `<div class="duration">${escapeHtml(dur)}</div>`}
       <div class="phone">${escapeHtml(formatLabelPhone(data.companyPhone || ""))}</div>
     </div>
   `
