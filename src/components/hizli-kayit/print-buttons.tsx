@@ -75,7 +75,7 @@ function buildAllJobs(kids: ChildEntry[], companyPhone: string, numbers: string[
 export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _sessionNumber }: Props) {
   const printer = useSettingsSection("printer")
   const { settings } = useSettings()
-  const companyPhone = settings.general.businessPhone
+  const companyPhone = settings.general.businessPhone || "+90 532 542 5205"
   const [busy, setBusy] = useState<"child" | "parent" | "both" | null>(null)
   const autoFiredRef = useRef(false)
 

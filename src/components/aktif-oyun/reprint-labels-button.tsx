@@ -87,7 +87,10 @@ interface Props { session: ActiveSession }
 export function ReprintLabelsButton({ session }: Props) {
   const printer = useSettingsSection("printer")
   const { settings } = useSettings()
-  const companyPhone = settings.general.businessPhone
+  // Fall back to the production phone if the user happens to have an empty
+  // string in settings (e.g. cleared the field by mistake) — the label
+  // bottom line should never be blank in production.
+  const companyPhone = settings.general.businessPhone || "+90 532 542 5205"
   const [open, setOpen]   = useState(false)
   const [busy, setBusy]   = useState<"child" | "parent" | "both" | null>(null)
   const [audit, setAudit] = useState<AuditEntry | null>(null)
