@@ -2,22 +2,20 @@
 
 // ─── Thermal Label Renderer ──────────────────────────────────────────────────
 //
-// Builds an isolated, print-only HTML document and triggers window.print()
-// in a hidden iframe. The XPrinter XP-470B picks it up via the OS print
-// dialog (auto-fires after registration when printer.autoPrintEnabled).
-//
-// Layout (proven on the XP-470B driver — flex column with margin-top
-// spacing, not gap/space-between, which the driver rasterised inconsistently).
+// Bullet-proof table layout for the XPrinter XP-470B. HTML tables render
+// reliably on every print driver — no flexbox/grid quirks. The 60×40mm
+// label fits five centered rows: queue number, child name, date, time,
+// shop phone. No logo, no brand text, no overflow.
 
 import type { PrinterSettings } from "@/types/settings"
 
 interface BaseLabelData {
-  queueNumber:   string   // "001" / "7" — resets per day
+  queueNumber:   string   // "7" / "001" — resets per day
   childName:     string
   startDate:     string   // "DD.MM.YYYY"
   startTime:     string   // "HH:mm"
   endTime:       string   // "HH:mm" or "Sınırsız"
-  durationLabel: string   // kept for back-compat with callers; not rendered
+  durationLabel: string   // accepted for back-compat with callers; not rendered
   companyPhone:  string
 }
 
@@ -34,7 +32,7 @@ function escapeHtml(input: string): string {
     .replaceAll('"', "&quot;")
 }
 
-/** Local Turkish format: "0532 542 52 05" — no +90 prefix. */
+/** Local Turkish format: "0532 542 52 05" — no +90. */
 function formatLabelPhone(raw: string): string {
   if (!raw) return ""
   const digits = raw.replace(/\D/g, "")
@@ -55,70 +53,36 @@ function baseCss(printer: PrinterSettings): string {
   const h = printer.labelHeightMm
   return `
     @page { size: ${w}mm ${h}mm; margin: 0; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-    body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
-    .label {
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #fff; color: #000; }
+    body { font-family: Arial, "Helvetica Neue", sans-serif; }
+
+    table.label {
       width: ${w}mm;
       height: ${h}mm;
-      padding: 2mm 2.5mm 1.5mm;
+      border-collapse: collapse;
       page-break-after: always;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
+      table-layout: fixed;
+    }
+    table.label:last-child { page-break-after: auto; }
+    table.label td {
       text-align: center;
-      overflow: hidden;
+      vertical-align: middle;
+      padding: 0;
     }
-    .label:last-child { page-break-after: auto; }
 
-    .label .queue {
-      font-size: 28pt;
-      font-weight: 900;
-      line-height: 1;
-      letter-spacing: -0.02em;
-      font-variant-numeric: tabular-nums;
-    }
-    .label .name {
-      margin-top: 1.5mm;
-      font-size: 20pt;
-      font-weight: 900;
-      line-height: 0.95;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      word-break: break-word;
-    }
-    .label .date {
-      margin-top: 1.5mm;
-      font-size: 11pt;
-      font-weight: 800;
-      line-height: 1;
-      font-variant-numeric: tabular-nums;
-    }
-    .label .times {
-      margin-top: 1mm;
-      font-size: 13pt;
-      font-weight: 900;
-      line-height: 1.05;
-      font-variant-numeric: tabular-nums;
-    }
-    .label .phone {
-      margin-top: auto;
-      padding-top: 1mm;
-      font-size: 12pt;
-      font-weight: 900;
-      letter-spacing: 0.03em;
-      font-variant-numeric: tabular-nums;
-    }
+    td.queue { font-size: 24pt; font-weight: 900; line-height: 1; }
+    td.name  { font-size: 18pt; font-weight: 900; line-height: 1; text-transform: uppercase; }
+    td.date  { font-size: 10pt; font-weight: 700; line-height: 1; }
+    td.time  { font-size: 12pt; font-weight: 900; line-height: 1; }
+    td.phone { font-size: 11pt; font-weight: 900; line-height: 1; }
 
     @media screen {
       body { background: #f1f5f9; padding: 8mm; }
-      .label {
+      table.label {
         background: #fff;
-        border: 1px dashed #94a3b8;
+        outline: 1px dashed #94a3b8;
         margin: 0 auto 4mm;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.06);
       }
     }
   `
@@ -130,14 +94,18 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   const timeRange = data.endTime
     ? `${escapeHtml(data.startTime)} - ${escapeHtml(data.endTime)}`
     : escapeHtml(data.startTime)
+  const queue = escapeHtml(bigQueueDigits(data.queueNumber))
+  const name  = escapeHtml(data.childName || "")
+  const date  = escapeHtml(data.startDate || "")
+  const phone = escapeHtml(formatLabelPhone(data.companyPhone || ""))
   return `
-    <div class="label">
-      <div class="queue">${escapeHtml(bigQueueDigits(data.queueNumber))}</div>
-      <div class="name">${escapeHtml(data.childName)}</div>
-      <div class="date">${escapeHtml(data.startDate || "")}</div>
-      <div class="times">${timeRange}</div>
-      <div class="phone">${escapeHtml(formatLabelPhone(data.companyPhone || ""))}</div>
-    </div>
+    <table class="label" cellspacing="0" cellpadding="0">
+      <tr><td class="queue">${queue}</td></tr>
+      <tr><td class="name">${name}</td></tr>
+      <tr><td class="date">${date}</td></tr>
+      <tr><td class="time">${timeRange}</td></tr>
+      <tr><td class="phone">${phone}</td></tr>
+    </table>
   `
 }
 
