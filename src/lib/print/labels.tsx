@@ -70,11 +70,11 @@ function baseCss(printer: PrinterSettings): string {
       padding: 0;
     }
 
-    td.queue { font-size: 30pt; font-weight: 900; line-height: 1; }
-    td.name  { font-size: 18pt; font-weight: 900; line-height: 1; text-transform: uppercase; }
-    td.date  { font-size: 11pt; font-weight: 700; line-height: 1; }
-    td.time  { font-size: 12pt; font-weight: 900; line-height: 1; }
-    td.phone { font-size: 12pt; font-weight: 900; line-height: 1; }
+    td.queue { font-size: 44pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; }
+    td.name  { font-size: 26pt; font-weight: 900; line-height: 1; text-transform: uppercase; letter-spacing: 0.02em; }
+    td.date  { font-size: 9pt;  font-weight: 700; line-height: 1; }
+    td.time  { font-size: 10pt; font-weight: 800; line-height: 1; }
+    td.phone { font-size: 10pt; font-weight: 800; line-height: 1; }
 
     @media screen {
       body { background: #f1f5f9; padding: 8mm; }
