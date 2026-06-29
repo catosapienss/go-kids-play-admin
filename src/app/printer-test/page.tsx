@@ -20,11 +20,12 @@ import {
 // customer is created. Safe to spam during printer setup.
 
 const DEFAULT_BASE = {
-  queueNumber:   "001",
-  childName:     "ARELA",
-  startTime:     "14:43",
-  endTime:       "15:43",
-  durationLabel: "60 DK",
+  queueNumber:   "007",
+  childName:     "ALYA",
+  startDate:     "25.06.2026",
+  startTime:     "14:32",
+  endTime:       "15:32",
+  durationLabel: "",
 }
 
 export default function PrinterTestPage() {
@@ -62,19 +63,22 @@ export default function PrinterTestPage() {
                box-shadow:0 1px 2px rgba(0,0,0,0.06); overflow:hidden;
                width:${printer.labelWidthMm}mm; height:${printer.labelHeightMm}mm;
                font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
-    .preview .label { position:relative; width:100%; height:100%; padding:1.5mm 2mm;
-                      display:flex; flex-direction:column; align-items:center;
-                      justify-content:space-between; text-align:center; box-sizing:border-box; }
-    .preview .queue { font-size:36pt; font-weight:900; line-height:0.9;
-                      letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
-    .preview .name  { font-size:24pt; font-weight:900; line-height:0.95;
-                      text-transform:uppercase; letter-spacing:0.04em; word-break:break-word; }
-    .preview .times { font-size:17pt; font-weight:900; line-height:1;
+    .preview .label { width:100%; height:100%; padding:2mm 2.5mm;
+                      display:grid; grid-template-columns:1fr auto; grid-template-rows:1fr auto;
+                      column-gap:2mm; row-gap:1mm; box-sizing:border-box; }
+    .preview .info  { display:flex; flex-direction:column; justify-content:center; gap:1.4mm; min-width:0; }
+    .preview .name  { font-size:18pt; font-weight:900; line-height:1;
+                      text-transform:uppercase; letter-spacing:0.02em; word-break:break-word; }
+    .preview .date  { font-size:12pt; font-weight:800; line-height:1;
                       font-variant-numeric:tabular-nums; letter-spacing:0.01em; }
-    .preview .duration { font-size:14pt; font-weight:800;
-                         text-transform:uppercase; letter-spacing:0.05em; line-height:1; }
-    .preview .phone { font-size:12pt; font-weight:900;
-                      letter-spacing:0.03em; font-variant-numeric:tabular-nums; line-height:1; }
+    .preview .times { font-size:13pt; font-weight:900; line-height:1;
+                      font-variant-numeric:tabular-nums; letter-spacing:0.01em; }
+    .preview .queue { grid-column:2; grid-row:1; align-self:center; justify-self:end;
+                      font-size:48pt; font-weight:900; line-height:0.85;
+                      letter-spacing:-0.04em; font-variant-numeric:tabular-nums; }
+    .preview .phone { grid-column:1 / -1; grid-row:2; text-align:center;
+                      font-size:12pt; font-weight:900; letter-spacing:0.03em;
+                      font-variant-numeric:tabular-nums; line-height:1; }
   `
 
   return (
@@ -116,8 +120,8 @@ export default function PrinterTestPage() {
               onChange={(v) => { setChild({ ...child, endTime: v }); setParent({ ...parent, endTime: v }) }} placeholder="HH:mm" />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <LabeledInput label="Süre" value={child.durationLabel}
-              onChange={(v) => { setChild({ ...child, durationLabel: v }); setParent({ ...parent, durationLabel: v }) }} placeholder="60 DK" />
+            <LabeledInput label="Tarih" value={child.startDate}
+              onChange={(v) => { setChild({ ...child, startDate: v }); setParent({ ...parent, startDate: v }) }} placeholder="25.06.2026" />
             <LabeledInput label="Telefon" value={child.companyPhone}
               onChange={(v) => { setChild({ ...child, companyPhone: v }); setParent({ ...parent, companyPhone: v }) }}
               icon={<Phone className="w-3.5 h-3.5"/>} />

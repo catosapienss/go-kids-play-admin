@@ -42,6 +42,10 @@ function formatHM(d: Date): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function formatDMY(d: Date): string {
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`
+}
+
 // Child + parent labels carry identical data — they print identical
 // stickers on purpose so staff doesn't have to keep track of which copy
 // is which during busy hours.
@@ -53,6 +57,7 @@ function buildSharedData(child: ChildEntry, companyPhone: string, queueNumber: s
   return {
     queueNumber,
     childName:     (child.name || "—").trim(),
+    startDate:     formatDMY(now),
     startTime:     formatHM(now),
     endTime:       end ? formatHM(end) : "SINIRSIZ",
     durationLabel: durationLabel(child.duration),

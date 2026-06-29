@@ -53,6 +53,7 @@ function buildJobs(session: ActiveSession, companyPhone: string): { child: Label
   const shared: ChildLabelData = {
     queueNumber:   getOrAssignSessionQueueNumber(session.id),
     childName:     (session.childName || "—").trim(),
+    startDate:     `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`,
     startTime:     session.entryTime,
     endTime:       endStr,
     durationLabel: shortDurationLabel(durationLabel),

@@ -3,32 +3,31 @@
 // ─── Thermal Label Renderer ──────────────────────────────────────────────────
 //
 // Builds an isolated, print-only HTML document and triggers window.print()
-// in a hidden iframe. Operator picks the XPrinter XP-470B from the browser's
-// print dialog.
+// in a hidden iframe. The XPrinter XP-470B picks it up via the OS print
+// dialog (auto-fires after registration when printer.autoPrintEnabled).
 //
-// Layout (BOTH child + parent labels, identical):
+// Layout (identical child + parent labels):
 //
-//   ┌──────────────────────────┐
-//   │          #001            │  ← queue number (huge)
-//   │                          │
-//   │          ALYA            │  ← child name
-//   │                          │
-//   │     14:32 — 15:32        │  ← time range
-//   │         60 DK            │  ← duration
-//   │     0532 542 52 05       │  ← phone (bottom)
-//   └──────────────────────────┘
+//   ┌──────────────────────────────────┐
+//   │ ALYA                             │
+//   │ 25.06.2026                  7    │  ← huge queue number on the right
+//   │ 14:32 --- 15:32                  │
+//   │                                  │
+//   │         0532 542 52 05           │
+//   └──────────────────────────────────┘
 //
-// No logo. No business name. Centred. Sized to the active PrinterSettings.
+// No logo. No business name. No duration. Local TR phone format.
 
 import type { PrinterSettings } from "@/types/settings"
 
 interface BaseLabelData {
-  queueNumber:   string   // "001", "002" … resets per day, see queue-number.ts
+  queueNumber:   string   // "001"… resets per day, see queue-number.ts
   childName:     string
+  startDate:     string   // "DD.MM.YYYY"
   startTime:     string   // "HH:mm"
   endTime:       string   // "HH:mm" or "Sınırsız"
-  durationLabel: string   // "30 DK" / "60 DK" / "SINIRSIZ"
-  companyPhone:  string   // shop phone
+  durationLabel: string   // kept for backwards compat with callers; not rendered
+  companyPhone:  string
 }
 
 export type ChildLabelData  = BaseLabelData
@@ -44,26 +43,21 @@ function escapeHtml(input: string): string {
     .replaceAll('"', "&quot;")
 }
 
-/**
- * Format a Turkish business phone into the canonical
- *   +90 (532) 542 52 05
- * style the labels print at the bottom. Tolerant of arbitrary input:
- * digits are extracted and re-grouped; non-Turkish numbers fall through
- * unchanged so we never mangle them.
- */
+/** Local Turkish format: "0532 542 52 05" — no +90 prefix. */
 function formatLabelPhone(raw: string): string {
   if (!raw) return ""
   const digits = raw.replace(/\D/g, "")
-  // Normalise: drop the leading 90 if present, or the leading 0.
   let local = digits
   if (local.startsWith("90") && local.length === 12) local = local.slice(2)
   else if (local.startsWith("0") && local.length === 11) local = local.slice(1)
-  if (local.length !== 10) return raw          // Not a TR number → pass through.
-  const area = local.slice(0, 3)
-  const a    = local.slice(3, 6)
-  const b    = local.slice(6, 8)
-  const c    = local.slice(8, 10)
-  return `+90 (${area}) ${a} ${b} ${c}`
+  if (local.length !== 10) return raw
+  return `0${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6, 8)} ${local.slice(8, 10)}`
+}
+
+/** Strip the leading zero from the queue number for the big display. */
+function bigQueueDigits(n: string): string {
+  const trimmed = (n || "").replace(/^0+/, "")
+  return trimmed || "0"
 }
 
 function baseCss(printer: PrinterSettings): string {
@@ -78,31 +72,38 @@ function baseCss(printer: PrinterSettings): string {
     .label {
       width: ${w}mm;
       height: ${h}mm;
-      padding: 1.5mm 2mm;
+      padding: 2mm 2.5mm;
       page-break-after: always;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      text-align: center;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-rows: 1fr auto;
+      column-gap: 2mm;
+      row-gap: 1mm;
       overflow: hidden;
     }
     .label:last-child { page-break-after: auto; }
 
-    .label .queue {
-      font-size: 26pt;
-      font-weight: 900;
-      line-height: 0.95;
-      letter-spacing: -0.02em;
-      font-variant-numeric: tabular-nums;
+    .label .info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 1.4mm;
+      min-width: 0;
     }
     .label .name {
       font-size: 18pt;
       font-weight: 900;
       line-height: 1;
       text-transform: uppercase;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.02em;
       word-break: break-word;
+    }
+    .label .date {
+      font-size: 12pt;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
     }
     .label .times {
       font-size: 13pt;
@@ -111,15 +112,24 @@ function baseCss(printer: PrinterSettings): string {
       font-variant-numeric: tabular-nums;
       letter-spacing: 0.01em;
     }
-    .label .duration {
-      font-size: 11pt;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      line-height: 1;
+
+    .label .queue {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: center;
+      justify-self: end;
+      font-size: 48pt;
+      font-weight: 900;
+      line-height: 0.85;
+      letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
     }
+
     .label .phone {
-      font-size: 11pt;
+      grid-column: 1 / -1;
+      grid-row: 2;
+      text-align: center;
+      font-size: 12pt;
       font-weight: 900;
       letter-spacing: 0.03em;
       font-variant-numeric: tabular-nums;
@@ -133,6 +143,7 @@ function baseCss(printer: PrinterSettings): string {
         border: 1px dashed #94a3b8;
         margin: 0 auto 4mm;
         box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        border-radius: 6px;
       }
     }
   `
@@ -142,22 +153,17 @@ function baseCss(printer: PrinterSettings): string {
 
 function renderUnifiedLabel(data: BaseLabelData): string {
   const timeRange = data.endTime
-    ? `${escapeHtml(data.startTime)} — ${escapeHtml(data.endTime)}`
+    ? `${escapeHtml(data.startTime)} --- ${escapeHtml(data.endTime)}`
     : escapeHtml(data.startTime)
-
-  // Avoid the duplicate "Sınırsız" line: when the time range already
-  // ends with Sınırsız/SINIRSIZ, the duration row would just repeat it
-  // and push the phone off the bottom of the 40mm label.
-  const dur = (data.durationLabel || "").trim()
-  const end = (data.endTime || "").trim().toUpperCase()
-  const hideDuration = !dur || end === "SINIRSIZ" || dur.toUpperCase() === "SINIRSIZ"
 
   return `
     <div class="label">
-      <div class="queue">#${escapeHtml(data.queueNumber || "—")}</div>
-      <div class="name">${escapeHtml(data.childName)}</div>
-      <div class="times">${timeRange}</div>
-      ${hideDuration ? "" : `<div class="duration">${escapeHtml(dur)}</div>`}
+      <div class="info">
+        <div class="name">${escapeHtml(data.childName)}</div>
+        <div class="date">${escapeHtml(data.startDate || "")}</div>
+        <div class="times">${timeRange}</div>
+      </div>
+      <div class="queue">${escapeHtml(bigQueueDigits(data.queueNumber))}</div>
       <div class="phone">${escapeHtml(formatLabelPhone(data.companyPhone || ""))}</div>
     </div>
   `
@@ -185,11 +191,6 @@ export function printLabels(jobs: LabelJob[], printer: PrinterSettings): Promise
     j.kind === "child" ? renderChildLabel(j.data) : renderParentLabel(j.data),
   ).join("\n")
 
-  // Title is a single space (not empty) so Chrome doesn't fall back to the URL
-  // in the print-dialog header. Combined with @page margin:0 the operator can
-  // turn off "Headers and footers" in the print dialog for a fully clean
-  // sticker — but even with it on, the top-left header now reads " " rather
-  // than the timestamp + filename pair.
   const html = `<!doctype html>
 <html lang="tr">
 <head>
