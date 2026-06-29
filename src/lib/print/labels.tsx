@@ -69,67 +69,51 @@ function baseCss(printer: PrinterSettings): string {
     html, body { margin: 0; padding: 0; background: #fff; color: #000; }
     body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
 
+    /* Flex-column layout (proven to work on the XP-470B driver).
+       Top to bottom: queue # → name → date → time → phone. */
     .label {
       width: ${w}mm;
       height: ${h}mm;
-      padding: 2mm 2.5mm;
+      padding: 1.5mm 2mm;
       page-break-after: always;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      grid-template-rows: 1fr auto;
-      column-gap: 2mm;
-      row-gap: 1mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      text-align: center;
       overflow: hidden;
     }
     .label:last-child { page-break-after: auto; }
 
-    .label .info {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 1.4mm;
-      min-width: 0;
+    .label .queue {
+      font-size: 30pt;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
     }
     .label .name {
       font-size: 18pt;
       font-weight: 900;
       line-height: 1;
       text-transform: uppercase;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.03em;
       word-break: break-word;
     }
     .label .date {
-      font-size: 12pt;
+      font-size: 11pt;
       font-weight: 800;
       line-height: 1;
       font-variant-numeric: tabular-nums;
-      letter-spacing: 0.01em;
     }
     .label .times {
       font-size: 13pt;
       font-weight: 900;
       line-height: 1;
       font-variant-numeric: tabular-nums;
-      letter-spacing: 0.01em;
     }
-
-    .label .queue {
-      grid-column: 2;
-      grid-row: 1;
-      align-self: center;
-      justify-self: end;
-      font-size: 48pt;
-      font-weight: 900;
-      line-height: 0.85;
-      letter-spacing: -0.04em;
-      font-variant-numeric: tabular-nums;
-    }
-
     .label .phone {
-      grid-column: 1 / -1;
-      grid-row: 2;
-      text-align: center;
-      font-size: 12pt;
+      font-size: 11pt;
       font-weight: 900;
       letter-spacing: 0.03em;
       font-variant-numeric: tabular-nums;
@@ -158,12 +142,10 @@ function renderUnifiedLabel(data: BaseLabelData): string {
 
   return `
     <div class="label">
-      <div class="info">
-        <div class="name">${escapeHtml(data.childName)}</div>
-        <div class="date">${escapeHtml(data.startDate || "")}</div>
-        <div class="times">${timeRange}</div>
-      </div>
       <div class="queue">${escapeHtml(bigQueueDigits(data.queueNumber))}</div>
+      <div class="name">${escapeHtml(data.childName)}</div>
+      <div class="date">${escapeHtml(data.startDate || "")}</div>
+      <div class="times">${timeRange}</div>
       <div class="phone">${escapeHtml(formatLabelPhone(data.companyPhone || ""))}</div>
     </div>
   `
