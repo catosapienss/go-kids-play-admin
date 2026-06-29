@@ -67,7 +67,18 @@ function baseCss(printer: PrinterSettings): string {
     @page { size: ${w}mm ${h}mm; margin: 0; }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-    body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+    body {
+      font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+      /* When sent to an A4 printer (no thermal driver picked yet) the label
+         still anchors in the centre of the sheet instead of getting lost in
+         a corner. On a real XP-470B the page IS the label, so this is a
+         no-op. */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
 
     .label {
       width: ${w}mm;
