@@ -6,27 +6,18 @@
 // in a hidden iframe. The XPrinter XP-470B picks it up via the OS print
 // dialog (auto-fires after registration when printer.autoPrintEnabled).
 //
-// Layout (identical child + parent labels):
-//
-//   ┌──────────────────────────────────┐
-//   │ ALYA                             │
-//   │ 25.06.2026                  7    │  ← huge queue number on the right
-//   │ 14:32 --- 15:32                  │
-//   │                                  │
-//   │         0532 542 52 05           │
-//   └──────────────────────────────────┘
-//
-// No logo. No business name. No duration. Local TR phone format.
+// Layout (proven on the XP-470B driver — flex column with margin-top
+// spacing, not gap/space-between, which the driver rasterised inconsistently).
 
 import type { PrinterSettings } from "@/types/settings"
 
 interface BaseLabelData {
-  queueNumber:   string   // "001"… resets per day, see queue-number.ts
+  queueNumber:   string   // "001" / "7" — resets per day
   childName:     string
   startDate:     string   // "DD.MM.YYYY"
   startTime:     string   // "HH:mm"
   endTime:       string   // "HH:mm" or "Sınırsız"
-  durationLabel: string   // kept for backwards compat with callers; not rendered
+  durationLabel: string   // kept for back-compat with callers; not rendered
   companyPhone:  string
 }
 
@@ -54,7 +45,6 @@ function formatLabelPhone(raw: string): string {
   return `0${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6, 8)} ${local.slice(8, 10)}`
 }
 
-/** Strip the leading zero from the queue number for the big display. */
 function bigQueueDigits(n: string): string {
   const trimmed = (n || "").replace(/^0+/, "")
   return trimmed || "0"
@@ -68,56 +58,58 @@ function baseCss(printer: PrinterSettings): string {
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: #fff; color: #000; }
     body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
-
-    /* Flex-column layout (proven to work on the XP-470B driver).
-       Top to bottom: queue # → name → date → time → phone. */
     .label {
       width: ${w}mm;
       height: ${h}mm;
-      padding: 1.5mm 2mm;
+      padding: 2mm 2.5mm 1.5mm;
       page-break-after: always;
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
       text-align: center;
       overflow: hidden;
     }
     .label:last-child { page-break-after: auto; }
 
     .label .queue {
-      font-size: 30pt;
+      font-size: 28pt;
       font-weight: 900;
       line-height: 1;
       letter-spacing: -0.02em;
       font-variant-numeric: tabular-nums;
     }
     .label .name {
-      font-size: 18pt;
+      margin-top: 1.5mm;
+      font-size: 20pt;
       font-weight: 900;
-      line-height: 1;
+      line-height: 0.95;
       text-transform: uppercase;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
       word-break: break-word;
     }
     .label .date {
+      margin-top: 1.5mm;
       font-size: 11pt;
       font-weight: 800;
       line-height: 1;
       font-variant-numeric: tabular-nums;
     }
     .label .times {
+      margin-top: 1mm;
       font-size: 13pt;
       font-weight: 900;
-      line-height: 1;
+      line-height: 1.05;
       font-variant-numeric: tabular-nums;
     }
     .label .phone {
-      font-size: 11pt;
+      margin-top: auto;
+      padding-top: 1mm;
+      font-size: 12pt;
       font-weight: 900;
       letter-spacing: 0.03em;
       font-variant-numeric: tabular-nums;
-      line-height: 1;
     }
 
     @media screen {
@@ -127,7 +119,6 @@ function baseCss(printer: PrinterSettings): string {
         border: 1px dashed #94a3b8;
         margin: 0 auto 4mm;
         box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-        border-radius: 6px;
       }
     }
   `
@@ -137,9 +128,8 @@ function baseCss(printer: PrinterSettings): string {
 
 function renderUnifiedLabel(data: BaseLabelData): string {
   const timeRange = data.endTime
-    ? `${escapeHtml(data.startTime)} --- ${escapeHtml(data.endTime)}`
+    ? `${escapeHtml(data.startTime)} - ${escapeHtml(data.endTime)}`
     : escapeHtml(data.startTime)
-
   return `
     <div class="label">
       <div class="queue">${escapeHtml(bigQueueDigits(data.queueNumber))}</div>

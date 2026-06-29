@@ -63,19 +63,20 @@ export default function PrinterTestPage() {
                box-shadow:0 1px 2px rgba(0,0,0,0.06); overflow:hidden;
                width:${printer.labelWidthMm}mm; height:${printer.labelHeightMm}mm;
                font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
-    .preview .label { width:100%; height:100%; padding:1.5mm 2mm;
+    .preview .label { position:relative; width:100%; height:100%;
+                      padding:2mm 2.5mm 1.5mm;
                       display:flex; flex-direction:column; align-items:center;
-                      justify-content:space-between; text-align:center; box-sizing:border-box; }
-    .preview .queue { font-size:30pt; font-weight:900; line-height:1;
+                      justify-content:flex-start; text-align:center; box-sizing:border-box; }
+    .preview .queue { font-size:28pt; font-weight:900; line-height:1;
                       letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
-    .preview .name  { font-size:18pt; font-weight:900; line-height:1;
-                      text-transform:uppercase; letter-spacing:0.03em; word-break:break-word; }
-    .preview .date  { font-size:11pt; font-weight:800; line-height:1;
+    .preview .name  { margin-top:1.5mm; font-size:20pt; font-weight:900; line-height:0.95;
+                      text-transform:uppercase; letter-spacing:0.04em; word-break:break-word; }
+    .preview .date  { margin-top:1.5mm; font-size:11pt; font-weight:800; line-height:1;
                       font-variant-numeric:tabular-nums; }
-    .preview .times { font-size:13pt; font-weight:900; line-height:1;
+    .preview .times { margin-top:1mm; font-size:13pt; font-weight:900; line-height:1.05;
                       font-variant-numeric:tabular-nums; }
-    .preview .phone { font-size:11pt; font-weight:900;
-                      letter-spacing:0.03em; font-variant-numeric:tabular-nums; line-height:1; }
+    .preview .phone { margin-top:auto; padding-top:1mm; font-size:12pt; font-weight:900;
+                      letter-spacing:0.03em; font-variant-numeric:tabular-nums; }
   `
 
   return (
