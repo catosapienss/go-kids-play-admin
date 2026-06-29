@@ -15,15 +15,8 @@ import { cn } from "@/lib/utils"
 // session as idle. Numeric pad → verify_pin RPC → on success the overlay
 // disappears and the user lands on the exact same page they left.
 
-const ROLE_LABEL: Record<string, string> = {
-  super_admin: "Süper Admin",
-  admin:       "Yönetici",
-  manager:     "Müdür",
-  staff:       "Personel",
-  cashier:     "Kasiyer",
-}
-
-const MAX_ATTEMPTS = 5
+const MAX_ATTEMPTS = 3
+const COOLDOWN_MS  = 30_000
 
 export function LockScreen() {
   const { locked, verifyPin } = useSessionLock()
@@ -33,6 +26,8 @@ export function LockScreen() {
   const [error, setError] = useState<string | null>(null)
   const [attempts, setAttempts] = useState(0)
   const [shake, setShake] = useState(false)
+  const [cooldownUntil, setCooldownUntil] = useState<number>(0)
+  const [cooldownLeft,  setCooldownLeft]  = useState<number>(0)
 
   // Reset state every time the lock turns on.
   useEffect(() => {
@@ -40,12 +35,30 @@ export function LockScreen() {
       setPin("")
       setError(null)
       setAttempts(0)
+      setCooldownUntil(0)
+      setCooldownLeft(0)
     }
   }, [locked])
 
+  // Tick the cooldown countdown each second.
+  useEffect(() => {
+    if (cooldownUntil <= 0) return
+    const id = setInterval(() => {
+      const left = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000))
+      setCooldownLeft(left)
+      if (left <= 0) {
+        setCooldownUntil(0)
+        setAttempts(0)
+        setError(null)
+        clearInterval(id)
+      }
+    }, 250)
+    return () => clearInterval(id)
+  }, [cooldownUntil])
+
   // Auto-submit when 4 digits are entered.
   useEffect(() => {
-    if (pin.length !== 4 || busy || !locked) return
+    if (pin.length !== 4 || busy || !locked || cooldownLeft > 0) return
     void submit(pin)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin])
@@ -62,8 +75,9 @@ export function LockScreen() {
       setTimeout(() => setShake(false), 400)
       setPin("")
       if (next >= MAX_ATTEMPTS) {
-        setError(`Çok fazla hatalı deneme. Oturum kapatılıyor…`)
-        setTimeout(() => { void signOut() }, 1200)
+        setCooldownUntil(Date.now() + COOLDOWN_MS)
+        setCooldownLeft(Math.ceil(COOLDOWN_MS / 1000))
+        setError(`Çok fazla hatalı deneme. 30 saniye bekle.`)
       } else {
         setError(`Hatalı PIN. ${MAX_ATTEMPTS - next} deneme kaldı.`)
       }
@@ -71,7 +85,7 @@ export function LockScreen() {
   }
 
   function press(digit: string) {
-    if (busy || pin.length >= 4) return
+    if (busy || pin.length >= 4 || cooldownLeft > 0) return
     setPin((p) => p + digit)
     setError(null)
   }
@@ -96,8 +110,11 @@ export function LockScreen() {
 
   if (!locked || !user) return null
 
-  const displayName = user.fullName || fromAuthEmail(user.email) || "Kullanıcı"
-  const roleLabel = ROLE_LABEL[user.role] ?? user.role
+  // The lock screen no longer pins the unlock to a single user — any active
+  // employee can type their own PIN and take over the session. We still show
+  // the user who locked the screen as a tiny "last user" hint, but the
+  // primary headline is the brand + a generic "PIN gir" prompt.
+  const lastUserName = user.fullName || fromAuthEmail(user.email) || ""
 
   return (
     <div
@@ -138,22 +155,24 @@ export function LockScreen() {
             <BrandLogo variant="hero" size="lg" on="dark" />
           </div>
 
-          {/* User identity */}
+          {/* Headline — any employee can unlock */}
           <div className="text-center space-y-1.5">
             <div className="flex items-center justify-center gap-2 text-white/40">
               <Lock className="w-3 h-3" />
               <span className="text-[10px] uppercase tracking-[0.3em] font-semibold">
-                Oturum Kilitli
+                Oturum Kilitli · PIN Gir
               </span>
             </div>
-            <h1 className="text-xl font-bold text-white">{displayName}</h1>
-            <p className="inline-flex items-center gap-1.5 text-[11px] text-white/50">
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ background: BRAND.mark.green }}
-              />
-              {roleLabel}
-            </p>
+            <h1 className="text-xl font-bold text-white">GO KIDS PLAY</h1>
+            {lastUserName && (
+              <p className="inline-flex items-center gap-1.5 text-[11px] text-white/40">
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: BRAND.mark.green }}
+                />
+                Son kullanıcı: {lastUserName}
+              </p>
+            )}
           </div>
 
           {/* PIN dots */}

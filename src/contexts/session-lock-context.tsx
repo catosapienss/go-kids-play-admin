@@ -63,22 +63,47 @@ export function SessionLockProvider({ children }: { children: React.ReactNode })
     if (!/^[0-9]{4}$/.test(pin)) return false
     try {
       const supabase = createClient()
-      const { data, error } = await supabase.rpc("verify_pin", { p_pin: pin })
+
+      // Multi-user PIN: any active employee can unlock by typing their own
+      // PIN; the session is then re-issued as them. The RPC returns one row
+      // when the PIN matches, otherwise no rows.
+      const { data, error } = await supabase.rpc("pin_switch", { p_pin: pin })
       if (error) {
-        console.error("[lock] verify_pin error", error)
+        console.error("[lock] pin_switch error", error)
+        // Fallback: old single-user verify_pin path so the lock still works
+        // before the migration has been deployed.
+        const { data: legacy } = await supabase.rpc("verify_pin", { p_pin: pin })
+        if (legacy === true) { setLocked(false); armTimer(); return true }
         return false
       }
-      if (data === true) {
+      const match = Array.isArray(data) ? data[0] : data
+      if (!match || !match.auth_email || !match.auth_password) return false
+
+      // If the matched user is already the active session, just unlock.
+      if (user && match.user_id === user.id) {
         setLocked(false)
         armTimer()
         return true
       }
-      return false
+
+      // Otherwise: switch the Supabase session to the new user. The
+      // auth-context listener will pick up the new user automatically.
+      const { error: signErr } = await supabase.auth.signInWithPassword({
+        email: match.auth_email,
+        password: match.auth_password,
+      })
+      if (signErr) {
+        console.error("[lock] switch sign-in failed", signErr)
+        return false
+      }
+      setLocked(false)
+      armTimer()
+      return true
     } catch (err) {
-      console.error("[lock] verify_pin exception", err)
+      console.error("[lock] verifyPin exception", err)
       return false
     }
-  }, [armTimer])
+  }, [armTimer, user])
 
   const lockNow = useCallback(() => {
     if (!user || exempt) return
