@@ -70,14 +70,11 @@ function baseCss(printer: PrinterSettings): string {
       padding: 0;
     }
 
-    td.logo  { height: 7mm; padding-top: 0.5mm; }
-    td.logo img { height: 6mm; width: auto; vertical-align: middle; }
-    td.queue { font-size: 26pt; font-weight: 900; line-height: 1; }
-    td.name  { font-size: 14pt; font-weight: 900; line-height: 1; text-transform: uppercase; }
-    td.date  { font-size: 9pt;  font-weight: 700; line-height: 1; }
-    td.time  { font-size: 10pt; font-weight: 900; line-height: 1; }
-    td.brand { font-size: 8pt;  font-weight: 900; line-height: 1; letter-spacing: 0.06em; }
-    td.phone { font-size: 10pt; font-weight: 900; line-height: 1; }
+    td.queue { font-size: 30pt; font-weight: 900; line-height: 1; }
+    td.name  { font-size: 18pt; font-weight: 900; line-height: 1; text-transform: uppercase; }
+    td.date  { font-size: 11pt; font-weight: 700; line-height: 1; }
+    td.time  { font-size: 12pt; font-weight: 900; line-height: 1; }
+    td.phone { font-size: 12pt; font-weight: 900; line-height: 1; }
 
     @media screen {
       body { background: #f1f5f9; padding: 8mm; }
@@ -102,12 +99,10 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   const phone = escapeHtml(formatLabelPhone(data.companyPhone || ""))
   return `
     <table class="label" cellspacing="0" cellpadding="0">
-      <tr><td class="logo"><img src="/brand/logo-mark.png" alt="" onerror="this.style.display='none'"></td></tr>
       <tr><td class="queue">${queue}</td></tr>
       <tr><td class="name">${name}</td></tr>
       <tr><td class="date">${date}</td></tr>
       <tr><td class="time">${timeRange}</td></tr>
-      <tr><td class="brand">GO KIDS PLAY</td></tr>
       <tr><td class="phone">${phone}</td></tr>
     </table>
   `
