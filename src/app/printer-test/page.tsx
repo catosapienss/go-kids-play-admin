@@ -65,11 +65,14 @@ export default function PrinterTestPage() {
                font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
     .preview table.label { width:100%; height:100%; border-collapse:collapse; table-layout:fixed; }
     .preview table.label td { text-align:center; vertical-align:middle; padding:0; }
-    .preview td.queue { font-size:24pt; font-weight:900; line-height:1; }
-    .preview td.name  { font-size:18pt; font-weight:900; line-height:1; text-transform:uppercase; }
-    .preview td.date  { font-size:10pt; font-weight:700; line-height:1; }
-    .preview td.time  { font-size:12pt; font-weight:900; line-height:1; }
-    .preview td.phone { font-size:11pt; font-weight:900; line-height:1; }
+    .preview td.logo  { height:7mm; padding-top:0.5mm; }
+    .preview td.logo img { height:6mm; width:auto; vertical-align:middle; }
+    .preview td.queue { font-size:26pt; font-weight:900; line-height:1; }
+    .preview td.name  { font-size:14pt; font-weight:900; line-height:1; text-transform:uppercase; }
+    .preview td.date  { font-size:9pt;  font-weight:700; line-height:1; }
+    .preview td.time  { font-size:10pt; font-weight:900; line-height:1; }
+    .preview td.brand { font-size:8pt;  font-weight:900; line-height:1; letter-spacing:0.06em; }
+    .preview td.phone { font-size:10pt; font-weight:900; line-height:1; }
   `
 
   return (

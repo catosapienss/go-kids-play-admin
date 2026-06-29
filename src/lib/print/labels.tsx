@@ -2,10 +2,9 @@
 
 // ─── Thermal Label Renderer ──────────────────────────────────────────────────
 //
-// Bullet-proof table layout for the XPrinter XP-470B. HTML tables render
-// reliably on every print driver — no flexbox/grid quirks. The 60×40mm
-// label fits five centered rows: queue number, child name, date, time,
-// shop phone. No logo, no brand text, no overflow.
+// Bullet-proof table layout matching the user's printed reference
+// (logo · queue · name · date · time · brand · phone). Tables render
+// reliably on every print driver including the XP-470B.
 
 import type { PrinterSettings } from "@/types/settings"
 
@@ -15,7 +14,7 @@ interface BaseLabelData {
   startDate:     string   // "DD.MM.YYYY"
   startTime:     string   // "HH:mm"
   endTime:       string   // "HH:mm" or "Sınırsız"
-  durationLabel: string   // accepted for back-compat with callers; not rendered
+  durationLabel: string   // accepted for back-compat; not rendered
   companyPhone:  string
 }
 
@@ -71,11 +70,14 @@ function baseCss(printer: PrinterSettings): string {
       padding: 0;
     }
 
-    td.queue { font-size: 24pt; font-weight: 900; line-height: 1; }
-    td.name  { font-size: 18pt; font-weight: 900; line-height: 1; text-transform: uppercase; }
-    td.date  { font-size: 10pt; font-weight: 700; line-height: 1; }
-    td.time  { font-size: 12pt; font-weight: 900; line-height: 1; }
-    td.phone { font-size: 11pt; font-weight: 900; line-height: 1; }
+    td.logo  { height: 7mm; padding-top: 0.5mm; }
+    td.logo img { height: 6mm; width: auto; vertical-align: middle; }
+    td.queue { font-size: 26pt; font-weight: 900; line-height: 1; }
+    td.name  { font-size: 14pt; font-weight: 900; line-height: 1; text-transform: uppercase; }
+    td.date  { font-size: 9pt;  font-weight: 700; line-height: 1; }
+    td.time  { font-size: 10pt; font-weight: 900; line-height: 1; }
+    td.brand { font-size: 8pt;  font-weight: 900; line-height: 1; letter-spacing: 0.06em; }
+    td.phone { font-size: 10pt; font-weight: 900; line-height: 1; }
 
     @media screen {
       body { background: #f1f5f9; padding: 8mm; }
@@ -92,7 +94,7 @@ function baseCss(printer: PrinterSettings): string {
 
 function renderUnifiedLabel(data: BaseLabelData): string {
   const timeRange = data.endTime
-    ? `${escapeHtml(data.startTime)} - ${escapeHtml(data.endTime)}`
+    ? `${escapeHtml(data.startTime)}---${escapeHtml(data.endTime)}`
     : escapeHtml(data.startTime)
   const queue = escapeHtml(bigQueueDigits(data.queueNumber))
   const name  = escapeHtml(data.childName || "")
@@ -100,10 +102,12 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   const phone = escapeHtml(formatLabelPhone(data.companyPhone || ""))
   return `
     <table class="label" cellspacing="0" cellpadding="0">
+      <tr><td class="logo"><img src="/brand/logo-mark.png" alt="" onerror="this.style.display='none'"></td></tr>
       <tr><td class="queue">${queue}</td></tr>
       <tr><td class="name">${name}</td></tr>
       <tr><td class="date">${date}</td></tr>
       <tr><td class="time">${timeRange}</td></tr>
+      <tr><td class="brand">GO KIDS PLAY</td></tr>
       <tr><td class="phone">${phone}</td></tr>
     </table>
   `
