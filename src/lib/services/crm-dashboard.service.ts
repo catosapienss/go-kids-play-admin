@@ -93,17 +93,16 @@ export async function listCustomers(
 
   // Single batched fetch for children of all returned parents.
   const parentIds = summaries.map((s) => s.id)
-  // The `children` table uses `full_name`. Older code paths referenced `name`
-  // — request both so we tolerate either schema variant on production.
+  // Production `children` table stores the kid's name in `full_name`.
   const { data: kids } = await supabase
     .from("children")
-    .select("parent_id, full_name, name")
+    .select("parent_id, full_name")
     .in("parent_id", parentIds)
     .order("created_at", { ascending: true })
 
   const byParent = new Map<string, string[]>()
-  for (const k of (kids ?? []) as { parent_id: string; full_name?: string | null; name?: string | null }[]) {
-    const label = (k.full_name ?? k.name ?? "").trim()
+  for (const k of (kids ?? []) as { parent_id: string; full_name: string | null }[]) {
+    const label = (k.full_name ?? "").trim()
     if (!label) continue
     const arr = byParent.get(k.parent_id) ?? []
     arr.push(label)
