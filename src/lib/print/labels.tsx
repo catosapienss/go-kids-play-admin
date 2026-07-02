@@ -69,19 +69,25 @@ function baseCss(printer: PrinterSettings): string {
       table-layout: fixed;
     }
     table.label:last-child { page-break-after: auto; }
-    table.label td { padding: 0; white-space: nowrap; overflow: hidden; }
+    table.label td { padding: 0; overflow: hidden; }
 
-    /* Layout: two columns on top (info + queue), phone spans both at bottom. */
-    td.info  { width: 60%; padding: 3mm 0 2mm 3mm; vertical-align: middle; text-align: left; }
-    td.queue { width: 40%; padding: 3mm 3mm 2mm 0; vertical-align: middle; text-align: center;
-               font-size: 60pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; }
+    /* Layout: info left (name/date/time, wrap allowed for long "İsim Soyisim"),
+       queue bottom-right (below name so long names use the top area freely),
+       phone spans both at the very bottom. */
+    td.info  { width: 65%; padding: 3mm 0 2mm 3mm; vertical-align: top; text-align: left; }
+    td.queue { width: 35%; padding: 0 3mm 2mm 0; vertical-align: bottom; text-align: center;
+               font-size: 46pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; }
     td.phone { padding: 0 0 3mm; vertical-align: bottom; text-align: center;
-               font-size: 14pt; font-weight: 900; line-height: 1; }
+               font-size: 14pt; font-weight: 900; line-height: 1; white-space: nowrap; }
 
-    td.info .name { font-size: 24pt; font-weight: 900; line-height: 1; text-transform: uppercase;
-                    letter-spacing: 0.02em; margin-bottom: 2mm; }
-    td.info .date { font-size: 13pt; font-weight: 700; line-height: 1; margin-bottom: 1.5mm; }
-    td.info .time { font-size: 14pt; font-weight: 800; line-height: 1; }
+    td.info .name {
+      font-size: 22pt; font-weight: 900; line-height: 1.05; text-transform: uppercase;
+      letter-spacing: 0.02em; margin-bottom: 2mm;
+      /* Allow 2-line wrap for "İsim Soyisim" without clipping. */
+      white-space: normal; word-break: break-word;
+    }
+    td.info .date { font-size: 13pt; font-weight: 700; line-height: 1; margin-bottom: 1.5mm; white-space: nowrap; }
+    td.info .time { font-size: 14pt; font-weight: 800; line-height: 1; white-space: nowrap; }
 
     @media screen {
       body { background: #f1f5f9; padding: 8mm; }
