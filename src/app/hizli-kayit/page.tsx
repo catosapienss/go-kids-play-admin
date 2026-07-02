@@ -354,7 +354,7 @@ export default function HizliKayitPage() {
       action:     "hizli-kayit.cancel",
       severity:   "warning",
       entityType: "session",
-      entityId:   selectedCustomer?.id ?? null,
+      entityId:   selectedCustomer?.id,
       meta: {
         parent_name:  selectedCustomer?.name  ?? null,
         parent_phone: selectedCustomer?.phone ?? null,
