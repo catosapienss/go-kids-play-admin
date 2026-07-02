@@ -74,17 +74,19 @@ function baseCss(printer: PrinterSettings): string {
     /* Layout: info left (name/date/time, wrap allowed for long "İsim Soyisim"),
        queue bottom-right (below name so long names use the top area freely),
        phone spans both at the very bottom. */
-    td.info  { width: 65%; padding: 3mm 0 2mm 3mm; vertical-align: top; text-align: left; }
-    td.queue { width: 35%; padding: 0 3mm 2mm 0; vertical-align: bottom; text-align: center;
-               font-size: 46pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; }
+    td.info  { width: 68%; padding: 2.5mm 0 2mm 3mm; vertical-align: top; text-align: left; }
+    td.queue { width: 32%; padding: 2mm 3mm 6mm 0; vertical-align: middle; text-align: center;
+               font-size: 44pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; }
     td.phone { padding: 0 0 3mm; vertical-align: bottom; text-align: center;
                font-size: 14pt; font-weight: 900; line-height: 1; white-space: nowrap; }
 
     td.info .name {
-      font-size: 22pt; font-weight: 900; line-height: 1.05; text-transform: uppercase;
-      letter-spacing: 0.02em; margin-bottom: 2mm;
-      /* Allow 2-line wrap for "İsim Soyisim" without clipping. */
-      white-space: normal; word-break: break-word;
+      font-size: 19pt; font-weight: 900; line-height: 1.05; text-transform: uppercase;
+      letter-spacing: 0.01em; margin-bottom: 2mm;
+      /* Wrap ONLY at spaces, never mid-word — prevents "BOSTANC" + "I" split.
+         If the word is still too long, ellipsis it rather than break. */
+      white-space: normal; word-break: keep-all; overflow-wrap: normal;
+      max-height: 12mm; overflow: hidden;
     }
     td.info .date { font-size: 13pt; font-weight: 700; line-height: 1; margin-bottom: 1.5mm; white-space: nowrap; }
     td.info .time { font-size: 14pt; font-weight: 800; line-height: 1; white-space: nowrap; }
