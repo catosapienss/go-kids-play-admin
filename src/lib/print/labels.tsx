@@ -51,32 +51,37 @@ function baseCss(printer: PrinterSettings): string {
   const w = printer.labelWidthMm
   const h = printer.labelHeightMm
   return `
-    @page { size: ${w}mm ${h}mm; margin: 0; }
+    /* Use "auto" so the label fills whatever custom paper size the user
+       configured in the print driver (e.g. "Gokidsplay"). Explicit mm hint
+       kept as a fallback for browsers that ignore auto. */
+    @page { size: auto; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: #fff; color: #000; }
+    html, body { background: #fff; color: #000; width: 100%; height: 100%; }
     body { font-family: Arial, "Helvetica Neue", sans-serif; }
 
     table.label {
-      width: ${w}mm;
-      height: ${h}mm;
+      width: 100%;
+      height: 100vh;
+      min-height: ${h}mm;
+      min-width:  ${w}mm;
       border-collapse: collapse;
       page-break-after: always;
       table-layout: fixed;
     }
     table.label:last-child { page-break-after: auto; }
-    table.label td { padding: 0; }
+    table.label td { padding: 0; white-space: nowrap; overflow: hidden; }
 
     /* Layout: two columns on top (info + queue), phone spans both at bottom. */
-    td.info  { width: 60%; padding: 1.5mm 0 1mm 2mm; vertical-align: middle; text-align: left; }
-    td.queue { width: 40%; padding: 1.5mm 2mm 1mm 0; vertical-align: middle; text-align: center;
-               font-size: 44pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; }
-    td.phone { padding: 0 0 1.5mm; vertical-align: bottom; text-align: center;
-               font-size: 11pt; font-weight: 900; line-height: 1; }
+    td.info  { width: 60%; padding: 3mm 0 2mm 3mm; vertical-align: middle; text-align: left; }
+    td.queue { width: 40%; padding: 3mm 3mm 2mm 0; vertical-align: middle; text-align: center;
+               font-size: 60pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; }
+    td.phone { padding: 0 0 3mm; vertical-align: bottom; text-align: center;
+               font-size: 14pt; font-weight: 900; line-height: 1; }
 
-    td.info .name { font-size: 18pt; font-weight: 900; line-height: 1; text-transform: uppercase;
-                    letter-spacing: 0.02em; margin-bottom: 1.5mm; word-break: break-word; }
-    td.info .date { font-size: 10pt; font-weight: 700; line-height: 1; margin-bottom: 1mm; }
-    td.info .time { font-size: 11pt; font-weight: 800; line-height: 1; }
+    td.info .name { font-size: 24pt; font-weight: 900; line-height: 1; text-transform: uppercase;
+                    letter-spacing: 0.02em; margin-bottom: 2mm; }
+    td.info .date { font-size: 13pt; font-weight: 700; line-height: 1; margin-bottom: 1.5mm; }
+    td.info .time { font-size: 14pt; font-weight: 800; line-height: 1; }
 
     @media screen {
       body { background: #f1f5f9; padding: 8mm; }

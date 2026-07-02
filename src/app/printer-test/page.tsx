@@ -65,15 +65,16 @@ export default function PrinterTestPage() {
                font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
     .preview table.label { width:100%; height:100%; border-collapse:collapse; table-layout:fixed; }
     .preview table.label td { text-align:center; vertical-align:middle; padding:0; }
-    .preview td.info  { width:60%; padding:1.5mm 0 1mm 2mm; vertical-align:middle; text-align:left; }
-    .preview td.queue { width:40%; padding:1.5mm 2mm 1mm 0; vertical-align:middle; text-align:center;
-                        font-size:44pt; font-weight:900; line-height:1; letter-spacing:-0.02em; }
-    .preview td.phone { padding:0 0 1.5mm; vertical-align:bottom; text-align:center;
-                        font-size:11pt; font-weight:900; line-height:1; }
-    .preview td.info .name { font-size:18pt; font-weight:900; line-height:1; text-transform:uppercase;
-                             letter-spacing:0.02em; margin-bottom:1.5mm; word-break:break-word; }
-    .preview td.info .date { font-size:10pt; font-weight:700; line-height:1; margin-bottom:1mm; }
-    .preview td.info .time { font-size:11pt; font-weight:800; line-height:1; }
+    .preview table.label td { white-space:nowrap; overflow:hidden; }
+    .preview td.info  { width:60%; padding:3mm 0 2mm 3mm; vertical-align:middle; text-align:left; }
+    .preview td.queue { width:40%; padding:3mm 3mm 2mm 0; vertical-align:middle; text-align:center;
+                        font-size:60pt; font-weight:900; line-height:1; letter-spacing:-0.02em; }
+    .preview td.phone { padding:0 0 3mm; vertical-align:bottom; text-align:center;
+                        font-size:14pt; font-weight:900; line-height:1; }
+    .preview td.info .name { font-size:24pt; font-weight:900; line-height:1; text-transform:uppercase;
+                             letter-spacing:0.02em; margin-bottom:2mm; }
+    .preview td.info .date { font-size:13pt; font-weight:700; line-height:1; margin-bottom:1.5mm; }
+    .preview td.info .time { font-size:14pt; font-weight:800; line-height:1; }
   `
 
   return (
