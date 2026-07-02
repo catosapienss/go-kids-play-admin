@@ -66,19 +66,20 @@ export default function PrinterTestPage() {
     .preview table.label { width:100%; height:100%; border-collapse:collapse; table-layout:fixed; }
     .preview table.label td { text-align:center; vertical-align:middle; padding:0; }
     .preview table.label td { padding:0; overflow:hidden; }
-    .preview td.left  { width:78%; padding:3mm 0 3mm 3mm; vertical-align:top; text-align:left; }
-    .preview td.right { width:22%; padding:3mm 2mm; vertical-align:middle; text-align:center;
-                        writing-mode:vertical-rl; text-orientation:mixed; white-space:nowrap; }
-    .preview td.left .queue { font-size:42pt; font-weight:600; line-height:1;
-                              letter-spacing:-0.01em; margin-bottom:3mm; }
-    .preview td.left .name  { font-size:16pt; font-weight:600; line-height:1.05;
-                              text-transform:uppercase; letter-spacing:0.01em; margin-bottom:1.5mm;
-                              white-space:normal; word-break:keep-all; overflow-wrap:normal; }
-    .preview td.left .date  { font-size:11pt; font-weight:400; line-height:1; margin-bottom:1mm; white-space:nowrap; }
-    .preview td.left .time  { font-size:12pt; font-weight:500; line-height:1; white-space:nowrap; }
-    .preview td.right .brand { font-size:11pt; font-weight:700; letter-spacing:0.08em;
-                               text-transform:uppercase; margin-bottom:3mm; }
-    .preview td.right .phone { font-size:11pt; font-weight:500; letter-spacing:0.02em; }
+    .preview td.info  { width:60%; padding:4mm 0 2mm 4mm; vertical-align:top; text-align:left; }
+    .preview td.queue { width:40%; padding:4mm 4mm 2mm 0; vertical-align:middle; text-align:center;
+                        font-size:64pt; font-weight:300; line-height:1; letter-spacing:-0.02em; }
+    .preview td.phone { padding:2mm 0 3mm; vertical-align:bottom; text-align:center;
+                        font-size:16pt; font-weight:300; line-height:1;
+                        letter-spacing:0.05em; white-space:nowrap; }
+    .preview td.info .name { font-size:22pt; font-weight:300; line-height:1.1;
+                             text-transform:uppercase; letter-spacing:0.02em; margin-bottom:3mm;
+                             white-space:normal; word-break:keep-all; overflow-wrap:normal;
+                             max-height:20mm; overflow:hidden; }
+    .preview td.info .date { font-size:15pt; font-weight:300; line-height:1; margin-bottom:3mm;
+                             white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .preview td.info .time { font-size:15pt; font-weight:300; line-height:1; white-space:nowrap;
+                             font-variant-numeric:tabular-nums; }
   `
 
   return (

@@ -51,14 +51,16 @@ function baseCss(printer: PrinterSettings): string {
   const w = printer.labelWidthMm
   const h = printer.labelHeightMm
   return `
-    /* Layout matching the target reference (IMG_9068):
-       - LEFT column: big queue digit at top, then name / date / time stacked
-       - RIGHT column: "GO KIDS PLAY" + phone, rotated vertically
-       Table cells are the most reliable primitive across print drivers. */
+    /* EXACT-COPY of the user's spec sheet:
+       - Left column: ALYA (name) top → 25.06.2026 (date) → 14:32---15:32 (time)
+       - Right column: single huge "7" (queue), vertically middle
+       - Bottom row: phone, centered, spanning both columns
+       - Physical logo is pre-printed on the label roll — NOT rendered here.
+       - Thin/light fonts throughout to save thermal ink. */
     @page { size: auto; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { background: #fff; color: #000; width: 100%; height: 100%; }
-    body { font-family: Arial, "Helvetica Neue", sans-serif; }
+    body { font-family: "Helvetica Neue", "Arial Nova", Arial, sans-serif; font-weight: 300; }
 
     table.label {
       width: 100%;
@@ -72,36 +74,32 @@ function baseCss(printer: PrinterSettings): string {
     table.label:last-child { page-break-after: auto; }
     table.label td { padding: 0; overflow: hidden; }
 
-    td.left  {
-      width: 78%; padding: 3mm 0 3mm 3mm;
-      vertical-align: top; text-align: left;
-    }
-    td.right {
-      width: 22%; padding: 3mm 2mm;
-      vertical-align: middle; text-align: center;
-      /* Rotate the text vertically so brand + phone read bottom-to-top
-         along the right edge — mirrors IMG_9068. */
-      writing-mode: vertical-rl;
-      text-orientation: mixed;
-      white-space: nowrap;
-    }
+    /* Reserve top-right corner space for the pre-printed logo watermark
+       by pushing content down a bit on both columns. */
+    td.info  { width: 60%; padding: 4mm 0 2mm 4mm;
+               vertical-align: top; text-align: left; }
+    td.queue { width: 40%; padding: 4mm 4mm 2mm 0;
+               vertical-align: middle; text-align: center;
+               font-size: 64pt; font-weight: 300; line-height: 1;
+               letter-spacing: -0.02em; }
+    td.phone { padding: 2mm 0 3mm; vertical-align: bottom; text-align: center;
+               font-size: 16pt; font-weight: 300; line-height: 1;
+               letter-spacing: 0.05em; white-space: nowrap; }
 
-    td.left .queue {
-      font-size: 42pt; font-weight: 600; line-height: 1;
-      letter-spacing: -0.01em; margin-bottom: 3mm;
-    }
-    td.left .name {
-      font-size: 16pt; font-weight: 600; line-height: 1.05;
-      text-transform: uppercase; letter-spacing: 0.01em;
-      margin-bottom: 1.5mm;
+    td.info .name {
+      font-size: 22pt; font-weight: 300; line-height: 1.1;
+      text-transform: uppercase; letter-spacing: 0.02em;
+      margin-bottom: 3mm;
+      /* wrap only at spaces, never mid-word */
       white-space: normal; word-break: keep-all; overflow-wrap: normal;
+      max-height: 20mm; overflow: hidden;
     }
-    td.left .date { font-size: 11pt; font-weight: 400; line-height: 1; margin-bottom: 1mm; white-space: nowrap; }
-    td.left .time { font-size: 12pt; font-weight: 500; line-height: 1; white-space: nowrap; }
-
-    td.right .brand { font-size: 11pt; font-weight: 700; letter-spacing: 0.08em;
-                      text-transform: uppercase; margin-bottom: 3mm; }
-    td.right .phone { font-size: 11pt; font-weight: 500; letter-spacing: 0.02em; }
+    td.info .date { font-size: 15pt; font-weight: 300; line-height: 1;
+                    margin-bottom: 3mm; white-space: nowrap;
+                    font-variant-numeric: tabular-nums; }
+    td.info .time { font-size: 15pt; font-weight: 300; line-height: 1;
+                    white-space: nowrap;
+                    font-variant-numeric: tabular-nums; }
 
     @media screen {
       body { background: #f1f5f9; padding: 8mm; }
@@ -127,16 +125,15 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   return `
     <table class="label" cellspacing="0" cellpadding="0">
       <tr>
-        <td class="left">
-          <div class="queue">${queue}</div>
+        <td class="info">
           <div class="name">${name}</div>
           <div class="date">${date}</div>
           <div class="time">${timeRange}</div>
         </td>
-        <td class="right">
-          <div class="brand">GO KIDS PLAY</div>
-          <div class="phone">${phone}</div>
-        </td>
+        <td class="queue">${queue}</td>
+      </tr>
+      <tr>
+        <td class="phone" colspan="2">${phone}</td>
       </tr>
     </table>
   `
