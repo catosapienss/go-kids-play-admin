@@ -51,28 +51,17 @@ function baseCss(printer: PrinterSettings): string {
   const w = printer.labelWidthMm
   const h = printer.labelHeightMm
   return `
-    /* The XP-470B driver treats the label paper as portrait. Our landscape
-       content is rotated -90° (CCW) via a wrapper so the driver's rotation
-       brings it back to landscape when printed. Placed to the RIGHT so the
-       queue digit lands opposite the pre-printed logo watermark. */
+    /* Portrait-native vertical stack (the XP-470B paper feeds portrait).
+       No rotation, no 2-column layout — just 5 rows top-to-bottom so the
+       driver always prints correctly regardless of paper orientation. */
     @page { size: auto; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: #fff; color: #000; width: 100%; height: 100%; overflow: hidden; }
-    body { font-family: Arial, "Helvetica Neue", sans-serif; position: relative; }
-
-    .rotator {
-      width: 100vh;        /* landscape width  = paper height */
-      height: 100vw;       /* landscape height = paper width  */
-      transform-origin: top left;
-      transform: translateY(100vh) rotate(-90deg);
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
+    html, body { background: #fff; color: #000; width: 100%; height: 100%; }
+    body { font-family: Arial, "Helvetica Neue", sans-serif; }
 
     table.label {
       width: 100%;
-      height: 100%;
+      height: 100vh;
       min-height: ${h}mm;
       min-width:  ${w}mm;
       border-collapse: collapse;
@@ -80,26 +69,16 @@ function baseCss(printer: PrinterSettings): string {
       table-layout: fixed;
     }
     table.label:last-child { page-break-after: auto; }
-    table.label td { padding: 0; overflow: hidden; }
+    table.label td { padding: 0; text-align: center; vertical-align: middle; overflow: hidden; }
 
-    /* Layout: info left (name/date/time, wrap allowed for long "İsim Soyisim"),
-       queue bottom-right (below name so long names use the top area freely),
-       phone spans both at the very bottom. */
-    td.info  { width: 68%; padding: 2.5mm 0 2mm 3mm; vertical-align: top; text-align: left; }
-    td.queue { width: 32%; padding: 2mm 3mm 6mm 0; vertical-align: middle; text-align: center;
-               font-size: 46pt; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
-    td.phone { padding: 0 0 3mm; vertical-align: bottom; text-align: center;
-               font-size: 15pt; font-weight: 500; line-height: 1; white-space: nowrap; }
-
-    td.info .name {
-      font-size: 20pt; font-weight: 600; line-height: 1.05; text-transform: uppercase;
-      letter-spacing: 0.01em; margin-bottom: 2mm;
-      /* Wrap ONLY at spaces, never mid-word — prevents "BOSTANC" + "I" split. */
-      white-space: normal; word-break: keep-all; overflow-wrap: normal;
-      max-height: 13mm; overflow: hidden;
-    }
-    td.info .date { font-size: 13pt; font-weight: 400; line-height: 1; margin-bottom: 1.5mm; white-space: nowrap; }
-    td.info .time { font-size: 14pt; font-weight: 500; line-height: 1; white-space: nowrap; }
+    td.queue { font-size: 42pt; font-weight: 600; line-height: 1; letter-spacing: -0.01em; padding-top: 2mm; }
+    td.name  { font-size: 18pt; font-weight: 600; line-height: 1.05; text-transform: uppercase;
+               letter-spacing: 0.01em; padding: 1mm 2mm;
+               white-space: normal; word-break: keep-all; overflow-wrap: normal; }
+    td.date  { font-size: 12pt; font-weight: 400; line-height: 1; padding: 0.5mm 0; white-space: nowrap; }
+    td.time  { font-size: 13pt; font-weight: 500; line-height: 1; padding: 0.5mm 0; white-space: nowrap; }
+    td.phone { font-size: 13pt; font-weight: 500; line-height: 1; padding: 1mm 0 2mm; white-space: nowrap;
+               vertical-align: bottom; }
 
     @media screen {
       body { background: #f1f5f9; padding: 8mm; }
@@ -123,21 +102,13 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   const date  = escapeHtml(data.startDate || "")
   const phone = escapeHtml(formatLabelPhone(data.companyPhone || ""))
   return `
-    <div class="rotator">
-      <table class="label" cellspacing="0" cellpadding="0">
-        <tr>
-          <td class="info">
-            <div class="name">${name}</div>
-            <div class="date">${date}</div>
-            <div class="time">${timeRange}</div>
-          </td>
-          <td class="queue">${queue}</td>
-        </tr>
-        <tr>
-          <td class="phone" colspan="2">${phone}</td>
-        </tr>
-      </table>
-    </div>
+    <table class="label" cellspacing="0" cellpadding="0">
+      <tr><td class="queue">${queue}</td></tr>
+      <tr><td class="name">${name}</td></tr>
+      <tr><td class="date">${date}</td></tr>
+      <tr><td class="time">${timeRange}</td></tr>
+      <tr><td class="phone">${phone}</td></tr>
+    </table>
   `
 }
 

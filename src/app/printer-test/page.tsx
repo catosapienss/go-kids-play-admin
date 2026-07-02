@@ -65,18 +65,15 @@ export default function PrinterTestPage() {
                font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
     .preview table.label { width:100%; height:100%; border-collapse:collapse; table-layout:fixed; }
     .preview table.label td { text-align:center; vertical-align:middle; padding:0; }
-    .preview table.label td { overflow:hidden; }
-    .preview td.info  { width:68%; padding:2.5mm 0 2mm 3mm; vertical-align:top; text-align:left; }
-    .preview td.queue { width:32%; padding:2mm 3mm 6mm 0; vertical-align:middle; text-align:center;
-                        font-size:46pt; font-weight:600; line-height:1; letter-spacing:-0.01em; }
-    .preview td.phone { padding:0 0 3mm; vertical-align:bottom; text-align:center;
-                        font-size:15pt; font-weight:500; line-height:1; white-space:nowrap; }
-    .preview td.info .name { font-size:20pt; font-weight:600; line-height:1.05; text-transform:uppercase;
-                             letter-spacing:0.01em; margin-bottom:2mm;
-                             white-space:normal; word-break:keep-all; overflow-wrap:normal;
-                             max-height:13mm; overflow:hidden; }
-    .preview td.info .date { font-size:13pt; font-weight:400; line-height:1; margin-bottom:1.5mm; white-space:nowrap; }
-    .preview td.info .time { font-size:14pt; font-weight:500; line-height:1; white-space:nowrap; }
+    .preview table.label td { padding:0; text-align:center; vertical-align:middle; overflow:hidden; }
+    .preview td.queue { font-size:42pt; font-weight:600; line-height:1; letter-spacing:-0.01em; padding-top:2mm; }
+    .preview td.name  { font-size:18pt; font-weight:600; line-height:1.05; text-transform:uppercase;
+                        letter-spacing:0.01em; padding:1mm 2mm;
+                        white-space:normal; word-break:keep-all; overflow-wrap:normal; }
+    .preview td.date  { font-size:12pt; font-weight:400; line-height:1; padding:0.5mm 0; white-space:nowrap; }
+    .preview td.time  { font-size:13pt; font-weight:500; line-height:1; padding:0.5mm 0; white-space:nowrap; }
+    .preview td.phone { font-size:13pt; font-weight:500; line-height:1; padding:1mm 0 2mm; white-space:nowrap;
+                        vertical-align:bottom; }
   `
 
   return (
