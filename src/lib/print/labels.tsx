@@ -51,12 +51,23 @@ function baseCss(printer: PrinterSettings): string {
   const w = printer.labelWidthMm
   const h = printer.labelHeightMm
   return `
-    /* Layout matches the spec sheet, then a 90° rotation is applied via a
-       wrapper so it prints correctly on the XP-470B (driver feeds portrait). */
+    /* Each child gets its own .page (full printed page → separate label).
+       The .rotator is absolutely positioned INSIDE each .page so multiple
+       children don't collide at (0,0) of a shared page. */
     @page { size: auto; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: #fff; color: #000; width: 100%; height: 100%; overflow: hidden; }
-    body { font-family: "Helvetica Neue", "Arial Nova", Arial, sans-serif; font-weight: 300; position: relative; }
+    html, body { background: #fff; color: #000; }
+    body { font-family: "Helvetica Neue", "Arial Nova", Arial, sans-serif; font-weight: 300; }
+
+    .page {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      page-break-after: always;
+      break-after: page;
+    }
+    .page:last-child { page-break-after: auto; break-after: auto; }
 
     .rotator {
       width: 100vh;
@@ -74,10 +85,8 @@ function baseCss(printer: PrinterSettings): string {
       min-height: ${h}mm;
       min-width:  ${w}mm;
       border-collapse: collapse;
-      page-break-after: always;
       table-layout: fixed;
     }
-    table.label:last-child { page-break-after: auto; }
     table.label td { padding: 0; overflow: hidden; }
 
     /* Reserve top-right corner space for the pre-printed logo watermark
@@ -129,20 +138,22 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   const date  = escapeHtml(data.startDate || "")
   const phone = escapeHtml(formatLabelPhone(data.companyPhone || ""))
   return `
-    <div class="rotator">
-      <table class="label" cellspacing="0" cellpadding="0">
-        <tr>
-          <td class="info">
-            <div class="name">${name}</div>
-            <div class="date">${date}</div>
-            <div class="time">${timeRange}</div>
-          </td>
-          <td class="queue">${queue}</td>
-        </tr>
-        <tr>
-          <td class="phone" colspan="2">${phone}</td>
-        </tr>
-      </table>
+    <div class="page">
+      <div class="rotator">
+        <table class="label" cellspacing="0" cellpadding="0">
+          <tr>
+            <td class="info">
+              <div class="name">${name}</div>
+              <div class="date">${date}</div>
+              <div class="time">${timeRange}</div>
+            </td>
+            <td class="queue">${queue}</td>
+          </tr>
+          <tr>
+            <td class="phone" colspan="2">${phone}</td>
+          </tr>
+        </table>
+      </div>
     </div>
   `
 }
