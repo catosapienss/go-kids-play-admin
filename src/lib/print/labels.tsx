@@ -64,17 +64,19 @@ function baseCss(printer: PrinterSettings): string {
       table-layout: fixed;
     }
     table.label:last-child { page-break-after: auto; }
-    table.label td {
-      text-align: center;
-      vertical-align: middle;
-      padding: 0;
-    }
+    table.label td { padding: 0; }
 
-    td.queue { font-size: 44pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; }
-    td.name  { font-size: 26pt; font-weight: 900; line-height: 1; text-transform: uppercase; letter-spacing: 0.02em; }
-    td.date  { font-size: 9pt;  font-weight: 700; line-height: 1; }
-    td.time  { font-size: 10pt; font-weight: 800; line-height: 1; }
-    td.phone { font-size: 10pt; font-weight: 800; line-height: 1; }
+    /* Layout: two columns on top (info + queue), phone spans both at bottom. */
+    td.info  { width: 60%; padding: 1.5mm 0 1mm 2mm; vertical-align: middle; text-align: left; }
+    td.queue { width: 40%; padding: 1.5mm 2mm 1mm 0; vertical-align: middle; text-align: center;
+               font-size: 44pt; font-weight: 900; line-height: 1; letter-spacing: -0.02em; }
+    td.phone { padding: 0 0 1.5mm; vertical-align: bottom; text-align: center;
+               font-size: 11pt; font-weight: 900; line-height: 1; }
+
+    td.info .name { font-size: 18pt; font-weight: 900; line-height: 1; text-transform: uppercase;
+                    letter-spacing: 0.02em; margin-bottom: 1.5mm; word-break: break-word; }
+    td.info .date { font-size: 10pt; font-weight: 700; line-height: 1; margin-bottom: 1mm; }
+    td.info .time { font-size: 11pt; font-weight: 800; line-height: 1; }
 
     @media screen {
       body { background: #f1f5f9; padding: 8mm; }
@@ -99,11 +101,17 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   const phone = escapeHtml(formatLabelPhone(data.companyPhone || ""))
   return `
     <table class="label" cellspacing="0" cellpadding="0">
-      <tr><td class="queue">${queue}</td></tr>
-      <tr><td class="name">${name}</td></tr>
-      <tr><td class="date">${date}</td></tr>
-      <tr><td class="time">${timeRange}</td></tr>
-      <tr><td class="phone">${phone}</td></tr>
+      <tr>
+        <td class="info">
+          <div class="name">${name}</div>
+          <div class="date">${date}</div>
+          <div class="time">${timeRange}</div>
+        </td>
+        <td class="queue">${queue}</td>
+      </tr>
+      <tr>
+        <td class="phone" colspan="2">${phone}</td>
+      </tr>
     </table>
   `
 }

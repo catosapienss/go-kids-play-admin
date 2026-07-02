@@ -65,11 +65,15 @@ export default function PrinterTestPage() {
                font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; }
     .preview table.label { width:100%; height:100%; border-collapse:collapse; table-layout:fixed; }
     .preview table.label td { text-align:center; vertical-align:middle; padding:0; }
-    .preview td.queue { font-size:44pt; font-weight:900; line-height:1; letter-spacing:-0.02em; }
-    .preview td.name  { font-size:26pt; font-weight:900; line-height:1; text-transform:uppercase; letter-spacing:0.02em; }
-    .preview td.date  { font-size:9pt;  font-weight:700; line-height:1; }
-    .preview td.time  { font-size:10pt; font-weight:800; line-height:1; }
-    .preview td.phone { font-size:10pt; font-weight:800; line-height:1; }
+    .preview td.info  { width:60%; padding:1.5mm 0 1mm 2mm; vertical-align:middle; text-align:left; }
+    .preview td.queue { width:40%; padding:1.5mm 2mm 1mm 0; vertical-align:middle; text-align:center;
+                        font-size:44pt; font-weight:900; line-height:1; letter-spacing:-0.02em; }
+    .preview td.phone { padding:0 0 1.5mm; vertical-align:bottom; text-align:center;
+                        font-size:11pt; font-weight:900; line-height:1; }
+    .preview td.info .name { font-size:18pt; font-weight:900; line-height:1; text-transform:uppercase;
+                             letter-spacing:0.02em; margin-bottom:1.5mm; word-break:break-word; }
+    .preview td.info .date { font-size:10pt; font-weight:700; line-height:1; margin-bottom:1mm; }
+    .preview td.info .time { font-size:11pt; font-weight:800; line-height:1; }
   `
 
   return (
