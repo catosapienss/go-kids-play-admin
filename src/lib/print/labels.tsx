@@ -51,20 +51,26 @@ function baseCss(printer: PrinterSettings): string {
   const w = printer.labelWidthMm
   const h = printer.labelHeightMm
   return `
-    /* EXACT-COPY of the user's spec sheet:
-       - Left column: ALYA (name) top → 25.06.2026 (date) → 14:32---15:32 (time)
-       - Right column: single huge "7" (queue), vertically middle
-       - Bottom row: phone, centered, spanning both columns
-       - Physical logo is pre-printed on the label roll — NOT rendered here.
-       - Thin/light fonts throughout to save thermal ink. */
+    /* Layout matches the spec sheet, then a 90° rotation is applied via a
+       wrapper so it prints correctly on the XP-470B (driver feeds portrait). */
     @page { size: auto; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: #fff; color: #000; width: 100%; height: 100%; }
-    body { font-family: "Helvetica Neue", "Arial Nova", Arial, sans-serif; font-weight: 300; }
+    html, body { background: #fff; color: #000; width: 100%; height: 100%; overflow: hidden; }
+    body { font-family: "Helvetica Neue", "Arial Nova", Arial, sans-serif; font-weight: 300; position: relative; }
+
+    .rotator {
+      width: 100vh;
+      height: 100vw;
+      transform-origin: top left;
+      transform: translateX(100vw) rotate(90deg);
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
 
     table.label {
       width: 100%;
-      height: 100vh;
+      height: 100%;
       min-height: ${h}mm;
       min-width:  ${w}mm;
       border-collapse: collapse;
@@ -123,19 +129,21 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   const date  = escapeHtml(data.startDate || "")
   const phone = escapeHtml(formatLabelPhone(data.companyPhone || ""))
   return `
-    <table class="label" cellspacing="0" cellpadding="0">
-      <tr>
-        <td class="info">
-          <div class="name">${name}</div>
-          <div class="date">${date}</div>
-          <div class="time">${timeRange}</div>
-        </td>
-        <td class="queue">${queue}</td>
-      </tr>
-      <tr>
-        <td class="phone" colspan="2">${phone}</td>
-      </tr>
-    </table>
+    <div class="rotator">
+      <table class="label" cellspacing="0" cellpadding="0">
+        <tr>
+          <td class="info">
+            <div class="name">${name}</div>
+            <div class="date">${date}</div>
+            <div class="time">${timeRange}</div>
+          </td>
+          <td class="queue">${queue}</td>
+        </tr>
+        <tr>
+          <td class="phone" colspan="2">${phone}</td>
+        </tr>
+      </table>
+    </div>
   `
 }
 
