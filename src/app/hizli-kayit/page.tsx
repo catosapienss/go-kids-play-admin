@@ -20,6 +20,7 @@ import {
   type DiscountType, type DiscountReason,
 } from "@/lib/services/discount.service"
 import { useSettingsSection } from "@/lib/settings/settings-store"
+import { recordAudit } from "@/lib/reliability/audit-log"
 import type { CartLine } from "@/types/retail"
 import { useAuth } from "@/contexts/auth-context"
 import { useSessionStore } from "@/lib/stores/session-store"
@@ -92,7 +93,8 @@ export default function HizliKayitPage() {
 
   const discountLimits = useSettingsSection("discounts")
 
-  const gameTotal    = children.length * globalUnitPrice
+  // Sum each child's individual price (each can have a different duration).
+  const gameTotal    = children.reduce((s, c) => s + (c.price || 0), 0)
   const retailTotal  = retailCart.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
   const grossTotal   = gameTotal + retailTotal
   const rawDiscount  = computeDiscountAmount(discountType, discountValue, grossTotal)
@@ -103,8 +105,9 @@ export default function HizliKayitPage() {
   const isReadyToStart =
     selectedCustomer !== null &&
     children.length > 0 &&
-    globalDuration !== null &&
-    children.every((c) => c.name) &&
+    // Every child must have both a name and a duration assigned. Removed
+    // the `globalDuration !== null` gate so mixed per-child durations work.
+    children.every((c) => c.name && c.duration != null) &&
     total > 0 &&
     paid >= total
 
@@ -157,10 +160,19 @@ export default function HizliKayitPage() {
   }, [globalDuration, globalUnitPrice])
 
   const handlePickGlobalDuration = useCallback((duration: DurationOption, unitPrice: number) => {
+    // Remember for newly-added children.
     setGlobalDuration(duration)
     setGlobalUnitPrice(unitPrice)
-    setChildren((prev) => prev.map((c) => ({ ...c, duration, price: unitPrice })))
-  }, [])
+    setChildren((prev) => {
+      // Case 1 — a specific chip is selected → change ONLY that child.
+      if (selectedChildId) {
+        return prev.map((c) => c.id === selectedChildId ? { ...c, duration, price: unitPrice } : c)
+      }
+      // Case 2 — no chip selected → seed only children who have no duration
+      // yet. Never overwrite an existing per-child choice.
+      return prev.map((c) => c.duration == null ? { ...c, duration, price: unitPrice } : c)
+    })
+  }, [selectedChildId])
 
   const handleSelectChild = useCallback((id: string) => {
     setSelectedChildId(id)
@@ -334,6 +346,28 @@ export default function HizliKayitPage() {
     setDiscountReason(null)
   }, [])
 
+  /** Cancel button — audit-logged clear so managers can trace who aborted
+   *  a mid-transaction registration. Captures the customer + kids at the
+   *  moment of cancellation for accountability. */
+  const handleCancel = useCallback(() => {
+    void recordAudit({
+      action:     "hizli-kayit.cancel",
+      severity:   "warning",
+      entityType: "session",
+      entityId:   selectedCustomer?.id ?? null,
+      meta: {
+        parent_name:  selectedCustomer?.name  ?? null,
+        parent_phone: selectedCustomer?.phone ?? null,
+        child_names:  children.map((c) => c.name).filter(Boolean),
+        gross_total:  grossTotal,
+        cancelled_by: user?.fullName ?? user?.email ?? null,
+        cancelled_at: new Date().toISOString(),
+      },
+    })
+    handleClear()
+    toast.info("İşlem iptal edildi ve kayda alındı")
+  }, [selectedCustomer, children, grossTotal, user, handleClear])
+
   const handleSuccessClose = useCallback(() => {
     setShowSuccess(false)
     handleClear()
@@ -368,9 +402,24 @@ export default function HizliKayitPage() {
               onRemove={handleRemoveChild}
             />
             <SessionDurationPicker
-              duration={globalDuration}
-              unitPrice={globalUnitPrice}
+              duration={
+                // Show the currently selected chip's duration if one is
+                // selected, else fall back to the shared default.
+                selectedChildId
+                  ? children.find((c) => c.id === selectedChildId)?.duration ?? null
+                  : globalDuration
+              }
+              unitPrice={
+                selectedChildId
+                  ? children.find((c) => c.id === selectedChildId)?.price ?? 0
+                  : globalUnitPrice
+              }
               childCount={children.length}
+              selectedChildName={
+                selectedChildId
+                  ? children.find((c) => c.id === selectedChildId)?.name ?? null
+                  : null
+              }
               onChange={handlePickGlobalDuration}
             />
             <InlineRetailPanel cart={retailCart} onChange={setRetailCart} />
@@ -398,7 +447,7 @@ export default function HizliKayitPage() {
           isProcessing={isProcessing}
           onStart={handleStart}
           onExtend={() => {}}
-          onCancel={handleClear}
+          onCancel={handleCancel}
           onClear={handleClear}
           onQr={() => {}}
           discountSlot={

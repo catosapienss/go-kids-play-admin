@@ -106,14 +106,6 @@ export function PaymentPanel({
     setActiveMethod(null)
   }
 
-  function handleQuickAmount(amount: number) {
-    setInputAmount(String(amount))
-  }
-
-  const quickAmounts = remaining > 0
-    ? [remaining, 50, 100, 200, 500].filter((v, i, arr) => arr.indexOf(v) === i).sort((a, b) => a - b).slice(0, 4)
-    : [50, 100, 200, 500]
-
   return (
     <div className="flex flex-col h-full gap-3">
       {/* Header */}
@@ -257,7 +249,17 @@ export function PaymentPanel({
                   return (
                     <button
                       key={method}
-                      onClick={() => !disabled && setActiveMethod(method)}
+                      onClick={() => {
+                        if (disabled) return
+                        setActiveMethod(method)
+                        // Auto-fill the whole remaining amount so single-tender
+                        // payments (default case) only need one click. Staff
+                        // manually reduces this for split payments.
+                        const seed = method === "wallet"
+                          ? Math.min(remaining, walletBalance)
+                          : remaining
+                        setInputAmount(seed > 0 ? String(seed) : "")
+                      }}
                       disabled={disabled}
                       className={cn(
                         "flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all",
@@ -311,25 +313,8 @@ export function PaymentPanel({
                       </button>
                     </div>
 
-                    {/* Quick amounts */}
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {quickAmounts.map((amt) => (
-                        <button
-                          key={amt}
-                          onClick={() => handleQuickAmount(amt)}
-                          className={cn(
-                            "py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95",
-                            inputAmount === String(amt)
-                              ? cn("text-white shadow-sm", meta.iconBg)
-                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-600"
-                          )}
-                        >
-                          ₺{amt}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Amount input */}
+                    {/* Amount input — auto-filled with the remaining total.
+                        Staff can override for split payment (mixed cash/card). */}
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₺</span>
                       <input

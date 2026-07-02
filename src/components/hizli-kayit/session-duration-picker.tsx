@@ -14,10 +14,14 @@ import type { DurationOption } from "@/types/hizli-kayit"
 // registration pipeline expects.
 
 interface Props {
-  duration:    DurationOption | null
-  unitPrice:   number               // ₺/child for current selection
-  childCount:  number
-  onChange:    (duration: DurationOption, unitPrice: number) => void
+  duration:          DurationOption | null
+  unitPrice:         number
+  childCount:        number
+  /** When set, the picker is targeting that specific child (per-child
+   *  duration). The hint text and totals adapt so staff know they're
+   *  changing only ONE chip, not everyone. */
+  selectedChildName?: string | null
+  onChange:          (duration: DurationOption, unitPrice: number) => void
 }
 
 function toDurationOption(durationMin: number): DurationOption {
@@ -27,10 +31,11 @@ function toDurationOption(durationMin: number): DurationOption {
   return 90
 }
 
-export function SessionDurationPicker({ duration, unitPrice, childCount, onChange }: Props) {
+export function SessionDurationPicker({ duration, unitPrice, childCount, selectedChildName, onChange }: Props) {
   const packages = useSettingsSection("packages")
   const items    = packages.items.filter((p) => p.active)
-  const lineTotal = unitPrice * Math.max(0, childCount)
+  const isPerChild = !!selectedChildName
+  const lineTotal = unitPrice * (isPerChild ? 1 : Math.max(0, childCount))
 
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
@@ -42,7 +47,9 @@ export function SessionDurationPicker({ duration, unitPrice, childCount, onChang
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">Oyun Süresi</h3>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              {childCount > 0 ? `${childCount} çocuğa uygulanır` : "Önce çocuk ekle"}
+              {isPerChild
+                ? <>Seçili: <strong className="text-violet-600 dark:text-violet-400">{selectedChildName}</strong></>
+                : childCount > 0 ? `${childCount} çocuğa uygulanır` : "Önce çocuk ekle"}
             </p>
           </div>
         </div>
