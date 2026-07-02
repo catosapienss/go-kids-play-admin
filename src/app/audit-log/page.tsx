@@ -26,6 +26,7 @@ const ACTION_LABELS: Record<string, string> = {
   "cash_register.close":  "Kasa Kapanışı",
   "staff.day.closing":    "Personel Gün Sonu",
   "session.start":        "Oturum Başlatma",
+  "session.create":       "Oturum Açılışı",
   "session.end":          "Oturum Bitiş",
   "session.extend":       "Süre Uzatma",
   "payment.create":       "Ödeme",
@@ -33,10 +34,39 @@ const ACTION_LABELS: Record<string, string> = {
   "membership.activate":  "Üyelik Aktivasyon",
   "membership.cancel":    "Üyelik İptal",
   "customer.create":      "Müşteri Kaydı",
+  "hizli-kayit.cancel":   "Kayıt İptali (Hızlı Kayıt)",
+  "discount.apply":       "İndirim Uygulandı",
+  "user.switch":          "Kullanıcı Değişimi",
+  "user.switch.fail":     "Hatalı PIN Denemesi",
+  "customer.tag.add":     "Müşteri Etiketi Eklendi",
+  "customer.tag.remove":  "Müşteri Etiketi Kaldırıldı",
 }
 
 function actionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action
+}
+
+// ─── Meta value helpers ─────────────────────────────────────────────────────
+
+function tl(v: unknown): string {
+  const n = typeof v === "number" ? v : Number(v)
+  if (!isFinite(n)) return "₺0"
+  return "₺" + n.toLocaleString("tr-TR")
+}
+
+function str(v: unknown): string | null {
+  if (v == null) return null
+  const s = String(v).trim()
+  return s || null
+}
+
+function fmtTime(iso: unknown): string | null {
+  if (typeof iso !== "string") return null
+  try {
+    return new Date(iso).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })
+  } catch {
+    return null
+  }
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
@@ -55,30 +85,164 @@ function SeverityBadge({ severity }: { severity: string }) {
   )
 }
 
+function Row({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-1 mr-3">
+      <span className="text-slate-400">{label}:</span>
+      <strong className={cn("text-slate-700 dark:text-slate-200", tone)}>{value}</strong>
+    </span>
+  )
+}
+
 function MetaDetail({ meta, action }: { meta: Record<string, unknown>; action: string }) {
+
+  // ── Hızlı Kayıt İptali ────────────────────────────────────────────────
+  if (action === "hizli-kayit.cancel") {
+    const parent   = str(meta.parent_name)
+    const phone    = str(meta.parent_phone)
+    const kids     = Array.isArray(meta.child_names) ? (meta.child_names as string[]).filter(Boolean) : []
+    const gross    = meta.gross_total
+    const byWhom   = str(meta.cancelled_by)
+    const when     = fmtTime(meta.cancelled_at)
+    return (
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        {parent && <Row label="Veli" value={parent} />}
+        {phone  && <Row label="Tel"  value={phone} />}
+        {kids.length > 0 && <Row label={kids.length > 1 ? "Çocuklar" : "Çocuk"} value={kids.join(", ")} />}
+        {typeof gross === "number" && gross > 0 && <Row label="Tutar" value={tl(gross)} tone="text-amber-600" />}
+        {byWhom && <Row label="İptal Eden" value={byWhom} tone="text-rose-600" />}
+        {when   && <Row label="Saat" value={when} />}
+      </span>
+    )
+  }
+
+  // ── Ödeme oluşturuldu ─────────────────────────────────────────────────
+  if (action === "payment.create") {
+    const cash   = Number(meta.cash   ?? 0)
+    const card   = Number(meta.card   ?? 0)
+    const wallet = Number(meta.wallet ?? 0)
+    const total  = Number(meta.total  ?? cash + card + wallet)
+    return (
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        {cash   > 0 && <Row label="Nakit"  value={tl(cash)}   tone="text-emerald-600" />}
+        {card   > 0 && <Row label="Kart"   value={tl(card)}   tone="text-blue-600" />}
+        {wallet > 0 && <Row label="Cüzdan" value={tl(wallet)} tone="text-violet-600" />}
+        <Row label="Toplam" value={tl(total)} tone="text-slate-900 dark:text-white" />
+      </span>
+    )
+  }
+
+  // ── Oturum açılışı ────────────────────────────────────────────────────
+  if (action === "session.create" || action === "session.start") {
+    const child  = str(meta.childName) ?? str(meta.child_name)
+    const parent = str(meta.parentName) ?? str(meta.parent_name)
+    const staff  = str(meta.staffName) ?? str(meta.staff_name)
+    const dur    = Number(meta.duration_minutes ?? meta.durationMinutes ?? 0)
+    return (
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        {child  && <Row label="Çocuk" value={child} />}
+        {parent && <Row label="Veli"  value={parent} />}
+        {dur > 0 ? <Row label="Süre" value={`${dur} dk`} /> : dur === 0 ? <Row label="Süre" value="Sınırsız" /> : null}
+        {staff  && <Row label="Personel" value={staff} tone="text-violet-600" />}
+      </span>
+    )
+  }
+
+  // ── Müşteri kaydı ─────────────────────────────────────────────────────
+  if (action === "customer.create") {
+    const name  = str(meta.fullName) ?? str(meta.full_name) ?? str(meta.name)
+    const phone = str(meta.phone)
+    return (
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        {name  && <Row label="Ad Soyad" value={name} />}
+        {phone && <Row label="Telefon"  value={phone} />}
+      </span>
+    )
+  }
+
+  // ── İndirim uygulandı ─────────────────────────────────────────────────
+  if (action === "discount.apply") {
+    const type   = str(meta.type)
+    const value  = Number(meta.value  ?? 0)
+    const amount = Number(meta.amount ?? 0)
+    const reason = str(meta.reason)
+    return (
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        <Row
+          label="Oran"
+          value={type === "percent" ? `%${value}` : tl(value)}
+        />
+        <Row label="Tutar" value={tl(amount)} tone="text-amber-600" />
+        {reason && <Row label="Sebep" value={reason} />}
+      </span>
+    )
+  }
+
+  // ── Kullanıcı değişimi (lock-screen PIN switch) ───────────────────────
+  if (action === "user.switch" || action === "user.switch.fail") {
+    const from = str(meta.from)
+    const to   = str(meta.to)
+    const failPrefix = str(meta.attempted_pin_prefix)
+    return (
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        {failPrefix && <Row label="Denenen PIN" value={failPrefix} tone="text-rose-600" />}
+        {from && <Row label="Önceki" value={from.slice(0, 8) + "…"} />}
+        {to   && <Row label="Yeni"   value={to.slice(0, 8) + "…"} tone="text-emerald-600" />}
+      </span>
+    )
+  }
+
+  // ── Personel gün sonu ────────────────────────────────────────────────
   if (action === "staff.day.closing") {
     return (
-      <span className="text-slate-500 dark:text-slate-400">
-        Nakit: <strong className="text-slate-700 dark:text-slate-200">₺{Number(meta.cash_count ?? 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</strong>
-        {" · "}
-        POS: <strong className="text-slate-700 dark:text-slate-200">₺{Number(meta.pos_z_report ?? 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</strong>
-        {!!meta.notes && <> · <em className="not-italic text-slate-400">{String(meta.notes)}</em></>}
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        <Row label="Nakit" value={tl(meta.cash_count)} tone="text-emerald-600" />
+        <Row label="POS"   value={tl(meta.pos_z_report)} tone="text-blue-600" />
+        {!!meta.notes && <em className="not-italic text-slate-400">· {String(meta.notes)}</em>}
       </span>
     )
   }
+
+  // ── Kasa kapanışı ─────────────────────────────────────────────────────
   if (action === "cash_register.close" && meta.diff) {
     const diff = meta.diff as Record<string, number>
-    const total = (diff.total ?? 0)
+    const total = diff.total ?? 0
     return (
-      <span className="text-slate-500 dark:text-slate-400">
-        Fark: <strong className={cn(Math.abs(total) < 0.01 ? "text-emerald-600" : "text-amber-600")}>
-          {total >= 0 ? "+" : ""}₺{total.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
-        </strong>
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        <Row
+          label="Fark"
+          value={`${total >= 0 ? "+" : ""}${tl(total)}`}
+          tone={Math.abs(total) < 0.01 ? "text-emerald-600" : "text-amber-600"}
+        />
       </span>
     )
   }
-  const str = JSON.stringify(meta)
-  return <span className="text-slate-400 font-mono text-[11px] truncate max-w-xs">{str.length > 80 ? str.slice(0, 80) + "…" : str}</span>
+
+  // ── Müşteri etiketi eklendi / kaldırıldı ──────────────────────────────
+  if (action === "customer.tag.add" || action === "customer.tag.remove") {
+    const tag = str(meta.tag)
+    return (
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        {tag && <Row label="Etiket" value={tag} tone="text-violet-600" />}
+      </span>
+    )
+  }
+
+  // ── Fallback: pretty key-value list for unknown actions ───────────────
+  const entries = Object.entries(meta).filter(([, v]) => v != null && v !== "" && v !== false)
+  if (entries.length === 0) return <span className="text-slate-400 italic text-[11px]">detay yok</span>
+  return (
+    <span className="text-[12px] text-slate-500 dark:text-slate-400">
+      {entries.slice(0, 4).map(([k, v]) => (
+        <Row
+          key={k}
+          label={k.replace(/_/g, " ")}
+          value={typeof v === "object" ? JSON.stringify(v).slice(0, 40) : String(v).slice(0, 40)}
+        />
+      ))}
+      {entries.length > 4 && <span className="text-slate-400">+{entries.length - 4} daha</span>}
+    </span>
+  )
 }
 
 export default function AuditLogPage() {
