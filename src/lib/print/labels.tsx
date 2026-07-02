@@ -51,9 +51,10 @@ function baseCss(printer: PrinterSettings): string {
   const w = printer.labelWidthMm
   const h = printer.labelHeightMm
   return `
-    /* Portrait-native vertical stack (the XP-470B paper feeds portrait).
-       No rotation, no 2-column layout — just 5 rows top-to-bottom so the
-       driver always prints correctly regardless of paper orientation. */
+    /* Layout matching the target reference (IMG_9068):
+       - LEFT column: big queue digit at top, then name / date / time stacked
+       - RIGHT column: "GO KIDS PLAY" + phone, rotated vertically
+       Table cells are the most reliable primitive across print drivers. */
     @page { size: auto; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { background: #fff; color: #000; width: 100%; height: 100%; }
@@ -69,16 +70,38 @@ function baseCss(printer: PrinterSettings): string {
       table-layout: fixed;
     }
     table.label:last-child { page-break-after: auto; }
-    table.label td { padding: 0; text-align: center; vertical-align: middle; overflow: hidden; }
+    table.label td { padding: 0; overflow: hidden; }
 
-    td.queue { font-size: 42pt; font-weight: 600; line-height: 1; letter-spacing: -0.01em; padding-top: 2mm; }
-    td.name  { font-size: 18pt; font-weight: 600; line-height: 1.05; text-transform: uppercase;
-               letter-spacing: 0.01em; padding: 1mm 2mm;
-               white-space: normal; word-break: keep-all; overflow-wrap: normal; }
-    td.date  { font-size: 12pt; font-weight: 400; line-height: 1; padding: 0.5mm 0; white-space: nowrap; }
-    td.time  { font-size: 13pt; font-weight: 500; line-height: 1; padding: 0.5mm 0; white-space: nowrap; }
-    td.phone { font-size: 13pt; font-weight: 500; line-height: 1; padding: 1mm 0 2mm; white-space: nowrap;
-               vertical-align: bottom; }
+    td.left  {
+      width: 78%; padding: 3mm 0 3mm 3mm;
+      vertical-align: top; text-align: left;
+    }
+    td.right {
+      width: 22%; padding: 3mm 2mm;
+      vertical-align: middle; text-align: center;
+      /* Rotate the text vertically so brand + phone read bottom-to-top
+         along the right edge — mirrors IMG_9068. */
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      white-space: nowrap;
+    }
+
+    td.left .queue {
+      font-size: 42pt; font-weight: 600; line-height: 1;
+      letter-spacing: -0.01em; margin-bottom: 3mm;
+    }
+    td.left .name {
+      font-size: 16pt; font-weight: 600; line-height: 1.05;
+      text-transform: uppercase; letter-spacing: 0.01em;
+      margin-bottom: 1.5mm;
+      white-space: normal; word-break: keep-all; overflow-wrap: normal;
+    }
+    td.left .date { font-size: 11pt; font-weight: 400; line-height: 1; margin-bottom: 1mm; white-space: nowrap; }
+    td.left .time { font-size: 12pt; font-weight: 500; line-height: 1; white-space: nowrap; }
+
+    td.right .brand { font-size: 11pt; font-weight: 700; letter-spacing: 0.08em;
+                      text-transform: uppercase; margin-bottom: 3mm; }
+    td.right .phone { font-size: 11pt; font-weight: 500; letter-spacing: 0.02em; }
 
     @media screen {
       body { background: #f1f5f9; padding: 8mm; }
@@ -103,11 +126,18 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   const phone = escapeHtml(formatLabelPhone(data.companyPhone || ""))
   return `
     <table class="label" cellspacing="0" cellpadding="0">
-      <tr><td class="queue">${queue}</td></tr>
-      <tr><td class="name">${name}</td></tr>
-      <tr><td class="date">${date}</td></tr>
-      <tr><td class="time">${timeRange}</td></tr>
-      <tr><td class="phone">${phone}</td></tr>
+      <tr>
+        <td class="left">
+          <div class="queue">${queue}</div>
+          <div class="name">${name}</div>
+          <div class="date">${date}</div>
+          <div class="time">${timeRange}</div>
+        </td>
+        <td class="right">
+          <div class="brand">GO KIDS PLAY</div>
+          <div class="phone">${phone}</div>
+        </td>
+      </tr>
     </table>
   `
 }
