@@ -22,7 +22,6 @@ interface SessionRow {
   child_name:   string | null
   parent_name:  string | null
   parent_phone: string | null
-  package_type: string | null
   duration_minutes: number
   start_time:   string
   end_time:     string | null
@@ -96,7 +95,7 @@ export function CrmTransactionsPanel() {
 
         let q = supabase
           .from("sessions")
-          .select("id, child_name, parent_name, parent_phone, package_type, duration_minutes, start_time, end_time, ended_at")
+          .select("id, child_name, parent_name, parent_phone, duration_minutes, start_time, end_time, ended_at")
           .gte("start_time", fromIso)
           .lte("start_time", toIso)
           .order("start_time", { ascending: false })
@@ -170,7 +169,7 @@ export function CrmTransactionsPanel() {
       r.child_name ?? "",
       r.parent_name ?? "",
       r.parent_phone ?? "",
-      r.package_type ?? "",
+      r.duration_minutes === 0 ? "Sınırsız" : `${r.duration_minutes} dk`,
       fmtDate(r.start_time),
       fmtHM(r.start_time),
       fmtHM(r.ended_at ?? r.end_time),
@@ -282,7 +281,7 @@ export function CrmTransactionsPanel() {
                   </td>
                   <td className="px-3 py-2">
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                      {r.package_type ?? (r.duration_minutes === 0 ? "Sınırsız" : `${r.duration_minutes} dk`)}
+                      {r.duration_minutes === 0 ? "Sınırsız" : `${r.duration_minutes} dk`}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
