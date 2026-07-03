@@ -45,6 +45,9 @@ export const ROUTE_MODULE: Record<string, ModuleKey> = {
   "/ayarlar":       "settings",
   "/tv":            "tv",
   "/canli":         "tv",
+  "/perakende":     "retail",
+  "/gun-sonu":      "finance",
+  "/audit-log":     "staff",
 }
 
 /** Resolve effective access by combining role default + per-user override. */
@@ -86,6 +89,7 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   "/dev-status":    ["super_admin", "admin"],
   "/durum":         ["super_admin", "admin", "manager"],
   "/yetki":         ["super_admin", "admin", "manager", "staff", "cashier"],
+  "/perakende":     ["super_admin", "admin", "manager", "staff", "cashier"],
 }
 
 /** Public routes that never need auth */
@@ -111,20 +115,21 @@ export function canAccessRoute(
   // Prefix match key for route lookups.
   const base = "/" + pathname.split("/")[1]
 
-  // 1) If the user has an explicit permission override for the module this
-  //    route belongs to, respect it — regardless of role.
+  // 1) Role-based rules (primary source of truth).
+  const roleAllows =
+    ROUTE_ROLES[pathname] ? ROUTE_ROLES[pathname].includes(role) :
+    ROUTE_ROLES[base]     ? ROUTE_ROLES[base].includes(role)     :
+    // Fall-back for unknown routes → admin-or-higher.
+    (role === "admin" || role === "super_admin")
+
+  if (roleAllows) return true
+
+  // 2) If role denies, allow the per-user permission override to GRANT
+  //    extra access. Override never REVOKES what the role already allows.
   const moduleKey = ROUTE_MODULE[pathname] ?? ROUTE_MODULE[base]
-  if (user && moduleKey) {
-    const override = user.permissions?.[moduleKey]
-    if (typeof override === "boolean") return override
-  }
+  if (user && moduleKey && user.permissions?.[moduleKey] === true) return true
 
-  // 2) Role-based rules.
-  if (ROUTE_ROLES[pathname]) return ROUTE_ROLES[pathname].includes(role)
-  if (ROUTE_ROLES[base])     return ROUTE_ROLES[base].includes(role)
-
-  // 3) Default: admin-or-higher for unknown routes.
-  return role === "admin" || role === "super_admin"
+  return false
 }
 
 /** Returns the first allowed route for a role (fallback redirect) */
