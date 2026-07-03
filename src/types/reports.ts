@@ -244,9 +244,11 @@ interface RawTopSpender {
   parent_id: string
   full_name: string
   phone: string
-  visits: number | string
-  spent: number | string
-  is_vip: boolean
+  visits?:      number | string
+  visit_count?: number | string
+  spent?:       number | string
+  total_spent?: number | string   // legacy RPC field
+  is_vip?:      boolean
 }
 
 interface RawCustomerInsights {
@@ -275,8 +277,10 @@ export function normalizeInsights(r: RawCustomerInsights): CustomerInsights {
       parentId: t.parent_id,
       fullName: t.full_name,
       phone:    t.phone,
-      visits:   num(t.visits),
-      spent:    num(t.spent),
+      // Accept legacy `total_spent` from an older RPC alongside the new
+      // `spent`, plus `visit_count` fallback for the older RPC output.
+      visits:   num(t.visits ?? t.visit_count),
+      spent:    num(t.spent  ?? t.total_spent),
       isVip:    !!t.is_vip,
     })),
   }
