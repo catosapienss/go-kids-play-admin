@@ -21,14 +21,14 @@ export function RoleGuard({ children }: RoleGuardProps) {
       router.replace("/login")
       return
     }
-    if (!canAccessRoute(pathname, user.role)) {
+    if (!canAccessRoute(pathname, user)) {
       router.replace("/403")
     }
   }, [user, loading, pathname, router])
 
   if (loading) return <LoadingScreen />
   if (!user) return null
-  if (!canAccessRoute(pathname, user.role)) return null
+  if (!canAccessRoute(pathname, user)) return null
 
   return <>{children}</>
 }

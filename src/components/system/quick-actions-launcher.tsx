@@ -117,7 +117,7 @@ export function QuickActionsLauncher() {
   const ranked = useMemo(() => {
     if (!user) return []
     return ACTIONS
-      .filter((a) => canAccessRoute(a.href, user.role))
+      .filter((a) => canAccessRoute(a.href, user))
       .map((a) => ({ a, score: matchScore(a, query) }))
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score)

@@ -93,19 +93,37 @@ export const PUBLIC_ROUTES = ["/login", "/tv", "/app", "/parent", "/canli"]
 
 const PERMISSIVE_MODE = false
 
-/** Check if a route is accessible for the given role */
-export function canAccessRoute(pathname: string, role: UserRole): boolean {
+/** Check if a route is accessible for the given user.
+ *  A per-user permission override for the route's module TRUMPS the role
+ *  restriction — so managers can grant a staff member access to /raporlar
+ *  by ticking the "reports" module for them in /personeller. */
+export function canAccessRoute(
+  pathname: string,
+  roleOrUser: UserRole | (Pick<UserProfile, "role" | "permissions"> | null | undefined),
+): boolean {
   if (PUBLIC_ROUTES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return true
   if (PERMISSIVE_MODE) return true
 
-  // Exact match
-  if (ROUTE_ROLES[pathname]) return ROUTE_ROLES[pathname].includes(role)
+  const user = typeof roleOrUser === "string" ? null : roleOrUser
+  const role = typeof roleOrUser === "string" ? roleOrUser : roleOrUser?.role
+  if (!role) return false
 
-  // Prefix match (e.g. /crm/123 → /crm)
+  // Prefix match key for route lookups.
   const base = "/" + pathname.split("/")[1]
-  if (ROUTE_ROLES[base]) return ROUTE_ROLES[base].includes(role)
 
-  // Default: admin-or-higher for unknown routes
+  // 1) If the user has an explicit permission override for the module this
+  //    route belongs to, respect it — regardless of role.
+  const moduleKey = ROUTE_MODULE[pathname] ?? ROUTE_MODULE[base]
+  if (user && moduleKey) {
+    const override = user.permissions?.[moduleKey]
+    if (typeof override === "boolean") return override
+  }
+
+  // 2) Role-based rules.
+  if (ROUTE_ROLES[pathname]) return ROUTE_ROLES[pathname].includes(role)
+  if (ROUTE_ROLES[base])     return ROUTE_ROLES[base].includes(role)
+
+  // 3) Default: admin-or-higher for unknown routes.
   return role === "admin" || role === "super_admin"
 }
 
