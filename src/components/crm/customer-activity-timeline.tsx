@@ -1,7 +1,7 @@
 "use client"
 
 import {
-  Baby, CreditCard, Wallet, Clock, AlertTriangle, type LucideIcon,
+  Baby, CreditCard, Wallet, Clock, AlertTriangle, ShoppingBag, type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { type CustomerActivityEvent, type ActivityKind } from "@/types/customer"
@@ -22,6 +22,7 @@ const KIND_META: Record<ActivityKind, { icon: LucideIcon; bg: string; fg: string
   wallet:        { icon: Wallet,         bg: "bg-blue-500/10",    fg: "text-blue-700 dark:text-blue-300",      label: "Cüzdan işlemi" },
   extension:     { icon: Clock,          bg: "bg-amber-500/10",   fg: "text-amber-700 dark:text-amber-300",    label: "Süre uzatma" },
   refund:        { icon: AlertTriangle,  bg: "bg-rose-500/10",    fg: "text-rose-700 dark:text-rose-300",      label: "İade" },
+  retail:        { icon: ShoppingBag,    bg: "bg-amber-500/10",   fg: "text-amber-700 dark:text-amber-300",    label: "Perakende Satış" },
 }
 
 function fmtMoney(n: unknown): string {
@@ -59,6 +60,23 @@ function describe(e: CustomerActivityEvent): string {
       return `+${m.added_minutes ?? 0} dk · ${fmtMoney(m.amount)}`
     case "refund":
       return `${fmtMoney(m.amount)} · ${m.reason ?? "—"}`
+    case "retail": {
+      // meta.items = [{ name: "Çorap", qty: 2, price: 100 }, …]
+      const items = (m.items as Array<{ name?: string; qty?: number | string; price?: number | string }> | undefined) ?? []
+      const parts: string[] = []
+      if (Number(m.cash_amount) > 0) parts.push(`Nakit ${fmtMoney(m.cash_amount)}`)
+      if (Number(m.card_amount) > 0) parts.push(`Kart ${fmtMoney(m.card_amount)}`)
+      const tenders = parts.join(" · ")
+      const products = items
+        .map((it) => {
+          const q = Number(it.qty ?? 1) || 1
+          return q > 1 ? `${it.name ?? "Ürün"} × ${q}` : (it.name ?? "Ürün")
+        })
+        .join(" · ")
+      return products
+        ? (tenders ? `${products} · ${tenders}` : products)
+        : fmtMoney(m.total_amount)
+    }
   }
 }
 

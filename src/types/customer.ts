@@ -112,6 +112,7 @@ export type ActivityKind =
   | "wallet"
   | "extension"
   | "refund"
+  | "retail"
 
 export interface CustomerActivityEvent {
   id: string

@@ -333,6 +333,7 @@ export default function HizliKayitPage() {
             cashAmount:    round2(s.cash),
             cardAmount:    round2(s.card),
             notes:         `Hızlı Kayıt · ${selectedCustomer.name}`,
+            parentId:      selectedCustomer.id,
           })
         } catch (e) {
           // Retail failure must not roll back already-created sessions.

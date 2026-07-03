@@ -71,6 +71,9 @@ export async function checkoutSale(input: {
   cashAmount: number
   cardAmount: number
   notes?: string
+  /** Optional — link the sale to a parent so it shows up in that
+   *  customer's activity timeline. */
+  parentId?: string
 }): Promise<{ saleId: string; total: number }> {
   const supabase = createClient()
   const total = input.cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
@@ -85,6 +88,7 @@ export async function checkoutSale(input: {
       cash_amount:    input.cashAmount,
       card_amount:    input.cardAmount,
       notes:          input.notes ?? null,
+      parent_id:      input.parentId ?? null,
     })
     .select("id")
     .single()
