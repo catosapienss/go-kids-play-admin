@@ -1,9 +1,11 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { createClient } from "@/lib/supabase/client"
+import { canAccessRoute, defaultRouteForRole } from "@/lib/permissions"
+import type { UserRole } from "@/types/auth"
 
 // ─── Session Lock ─────────────────────────────────────────────────────────────
 //
@@ -31,6 +33,7 @@ const SessionLockContext = createContext<SessionLockValue | null>(null)
 export function SessionLockProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const pathname = usePathname() ?? "/"
+  const router   = useRouter()
   const [locked, setLocked] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -98,12 +101,27 @@ export function SessionLockProvider({ children }: { children: React.ReactNode })
       }
       setLocked(false)
       armTimer()
+
+      // If the new user can't view the current page, bounce them to their
+      // own default route so they never see the 403 splash immediately
+      // after unlocking.
+      const newRole = (match.role as UserRole | undefined) ?? "staff"
+      const stillOk = canAccessRoute(pathname, {
+        role: newRole,
+        // Permissions haven't loaded yet — assume empty. `canAccessRoute`
+        // now only grants extra via override, so an empty object is safe.
+        permissions: {},
+      })
+      if (!stillOk) {
+        router.replace(defaultRouteForRole(newRole))
+      }
+
       return true
     } catch (err) {
       console.error("[lock] verifyPin exception", err)
       return false
     }
-  }, [armTimer, user])
+  }, [armTimer, user, pathname, router])
 
   const lockNow = useCallback(() => {
     if (!user || exempt) return
