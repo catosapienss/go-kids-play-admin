@@ -8,6 +8,7 @@ import { SessionDurationPicker } from "@/components/hizli-kayit/session-duration
 import { InlineRetailPanel } from "@/components/hizli-kayit/inline-retail-panel"
 import { DiscountActionButton } from "@/components/hizli-kayit/discount-action-button"
 import { PaymentPanel } from "@/components/hizli-kayit/payment-panel"
+import { RetailPaymentPanel, summariseRetailPayments } from "@/components/hizli-kayit/retail-payment-panel"
 import { ActionBar } from "@/components/hizli-kayit/action-bar"
 import { SuccessModal } from "@/components/hizli-kayit/success-modal"
 import { EntryCodeLookup } from "@/components/hizli-kayit/entry-code-lookup"
@@ -81,6 +82,7 @@ export default function HizliKayitPage() {
   const [children, setChildren] = useState<ChildEntry[]>([])
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
   const [payments, setPayments] = useState<PaymentEntry[]>([])
+  const [retailPayments, setRetailPayments] = useState<PaymentEntry[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   // Section 3 — single duration applied to ALL children. Section 4 — retail.
@@ -97,19 +99,24 @@ export default function HizliKayitPage() {
   const gameTotal    = children.reduce((s, c) => s + (c.price || 0), 0)
   const retailTotal  = retailCart.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
   const grossTotal   = gameTotal + retailTotal
-  const rawDiscount  = computeDiscountAmount(discountType, discountValue, grossTotal)
+  // Discount applies to the GAME portion only — retail products are hard
+  // goods, no loyalty markdown.
+  const rawDiscount  = computeDiscountAmount(discountType, discountValue, gameTotal)
   const userCap      = maxDiscountForRole(user?.role, discountLimits)
   const discount     = Math.min(rawDiscount, isFinite(userCap) ? userCap : rawDiscount)
-  const total        = Math.max(0, grossTotal - discount)
-  const paid = payments.reduce((sum, p) => sum + p.amount, 0)
+  const gameNet      = Math.max(0, gameTotal - discount)
+  const total        = gameNet + retailTotal
+  const paidGame     = payments.reduce((sum, p) => sum + p.amount, 0)
+  const paidRetail   = retailPayments.reduce((sum, p) => sum + p.amount, 0)
   const isReadyToStart =
     selectedCustomer !== null &&
     children.length > 0 &&
-    // Every child must have both a name and a duration assigned. Removed
-    // the `globalDuration !== null` gate so mixed per-child durations work.
     children.every((c) => c.name && c.duration != null) &&
-    total > 0 &&
-    paid >= total
+    // Game portion must be fully paid.
+    gameNet > 0 &&
+    paidGame >= gameNet &&
+    // Retail portion (if any) must be fully paid via its own tender split.
+    (retailTotal === 0 || paidRetail >= retailTotal)
 
   const handleSelectCustomer = useCallback((customer: Customer) => {
     setSelectedCustomer(customer)
@@ -289,25 +296,18 @@ export default function HizliKayitPage() {
         await deductWallet(selectedCustomer.id, totalWallet)
       }
 
-      // Retail cart — single sale row + line items, paid from the leftover
-      // (non-session) share of the payments. We split the retail share off
-      // proportionally: retailTotal / total of the cash + card buckets.
+      // Retail cart — paid from its OWN payment stream (retailPayments),
+      // so day-end reports show the exact tender the operator picked for
+      // retail, not a proportional guess.
       if (retailCart.length > 0 && retailTotal > 0) {
-        const cashTotal = payments.filter((p) => p.method === "cash").reduce((s, p) => s + p.amount, 0)
-        const cardTotal = payments.filter((p) => p.method === "card").reduce((s, p) => s + p.amount, 0)
-        const ratio     = total > 0 ? retailTotal / total : 1
-        const retailCash = round2(cashTotal * ratio)
-        const retailCard = round2(retailTotal - retailCash)
-        const method: "cash" | "card" | "split" =
-          retailCash > 0 && retailCard > 0 ? "split" :
-          retailCash > 0 ? "cash" : "card"
+        const s = summariseRetailPayments(retailPayments)
         try {
           await checkoutSale({
             cashierId:     user?.id ?? "",
             cart:          retailCart,
-            paymentMethod: method,
-            cashAmount:    retailCash,
-            cardAmount:    retailCard,
+            paymentMethod: s.method,
+            cashAmount:    round2(s.cash),
+            cardAmount:    round2(s.card),
             notes:         `Hızlı Kayıt · ${selectedCustomer.name}`,
           })
         } catch (e) {
@@ -331,13 +331,14 @@ export default function HizliKayitPage() {
     } finally {
       setIsProcessing(false)
     }
-  }, [isReadyToStart, isProcessing, selectedCustomer, children, payments, retailCart, retailTotal, total, grossTotal, discount, discountType, discountValue, discountReason, user, refreshSessions])
+  }, [isReadyToStart, isProcessing, selectedCustomer, children, payments, retailPayments, retailCart, retailTotal, gameNet, grossTotal, discount, discountType, discountValue, discountReason, user, refreshSessions])
 
   const handleClear = useCallback(() => {
     setSelectedCustomer(null)
     setChildren([])
     setSelectedChildId(null)
     setPayments([])
+    setRetailPayments([])
     setGlobalDuration(null)
     setGlobalUnitPrice(0)
     setRetailCart([])
@@ -425,18 +426,25 @@ export default function HizliKayitPage() {
             <InlineRetailPanel cart={retailCart} onChange={setRetailCart} />
           </div>
 
-          {/* RIGHT: Payment */}
-          <div className="p-4 lg:p-5 overflow-y-auto">
+          {/* RIGHT: Payment — GAME panel (top) + optional RETAIL panel (below) */}
+          <div className="p-4 lg:p-5 overflow-y-auto space-y-3">
             <PaymentPanel
-              total={total}
+              total={gameNet}
               gameTotal={gameTotal}
-              retailTotal={retailTotal}
+              retailTotal={0}
               discount={discount}
               payments={payments}
               customer={selectedCustomer}
               onAddPayment={handleAddPayment}
               onRemovePayment={handleRemovePayment}
               onUpdatePayment={handleUpdatePayment}
+            />
+            <RetailPaymentPanel
+              total={retailTotal}
+              payments={retailPayments}
+              onAdd={(method, amount) => setRetailPayments((prev) => [...prev, { id: makeId(), method, amount }])}
+              onRemove={(id) => setRetailPayments((prev) => prev.filter((p) => p.id !== id))}
+              onUpdate={(id, amount) => setRetailPayments((prev) => prev.map((p) => (p.id === id ? { ...p, amount } : p)))}
             />
           </div>
         </div>
