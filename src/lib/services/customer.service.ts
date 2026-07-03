@@ -117,6 +117,56 @@ export async function listRepeatVisitors(limit = 8): Promise<RepeatVisitor[]> {
   }))
 }
 
+// ─── Payment method breakdown (life-time for a parent) ─────────────────────
+//
+// Computes how much of this customer's spend came via cash, card and wallet.
+// Reads directly from `payments` filtered by the parent's session ids —
+// no aggregation view needed. Returns zeros when the parent has no
+// payments yet (or if the query fails, so the UI never crashes).
+
+export interface CustomerPaymentBreakdown {
+  cash:     number
+  card:     number
+  wallet:   number
+  total:    number
+  txCount:  number
+}
+
+export async function getCustomerPaymentBreakdown(parentId: string): Promise<CustomerPaymentBreakdown> {
+  const empty: CustomerPaymentBreakdown = { cash: 0, card: 0, wallet: 0, total: 0, txCount: 0 }
+  try {
+    const supabase = createClient()
+    // First find every session id belonging to this parent, then sum payments.
+    const { data: sessions } = await supabase
+      .from("sessions")
+      .select("id")
+      .eq("parent_id", parentId)
+    const sessionIds = (sessions ?? []).map((s: { id: string }) => s.id)
+    if (sessionIds.length === 0) return empty
+
+    const { data: pays, error } = await supabase
+      .from("payments")
+      .select("cash_amount, card_amount, wallet_amount")
+      .in("session_id", sessionIds)
+    if (error) throw error
+
+    let cash = 0, card = 0, wallet = 0
+    for (const p of (pays ?? []) as Array<{ cash_amount: number | string | null; card_amount: number | string | null; wallet_amount: number | string | null }>) {
+      cash   += Number(p.cash_amount   ?? 0) || 0
+      card   += Number(p.card_amount   ?? 0) || 0
+      wallet += Number(p.wallet_amount ?? 0) || 0
+    }
+    return {
+      cash, card, wallet,
+      total:   cash + card + wallet,
+      txCount: (pays ?? []).length,
+    }
+  } catch (e) {
+    log.warn("getCustomerPaymentBreakdown failed", { parentId }, e)
+    return empty
+  }
+}
+
 // ─── Tag management (manager+ only) ──────────────────────────────────────────
 
 export async function setCustomerTag(

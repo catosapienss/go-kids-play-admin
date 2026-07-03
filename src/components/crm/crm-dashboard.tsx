@@ -132,15 +132,16 @@ export function CrmDashboard() {
                 <Th>Telefon</Th>
                 <Th>Son Ziyaret</Th>
                 <Th className="text-right">Toplam Ziyaret</Th>
+                <Th className="text-right">Toplam Harcama</Th>
                 <Th>Etiketler</Th>
                 <Th className="pr-3" />
               </tr>
             </thead>
             <tbody>
               {error ? (
-                <tr><td colSpan={8} className="py-10 text-center text-rose-500 text-sm">{error}</td></tr>
+                <tr><td colSpan={9} className="py-10 text-center text-rose-500 text-sm">{error}</td></tr>
               ) : rows === null ? (
-                <tr><td colSpan={8} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" /></td></tr>
+                <tr><td colSpan={9} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" /></td></tr>
               ) : rows.length === 0 ? (
                 <EmptyRow searching={debounced.length >= 2} />
               ) : rows.map((c) => (
@@ -227,6 +228,12 @@ function CustomerRow({ c, onOpen }: RowProps) {
         <span className="text-[10px] text-slate-400 ml-1">ziyaret</span>
       </td>
 
+      <td className="px-3 py-2.5 text-right tabular-nums">
+        <span className="text-[13px] font-bold text-emerald-600 dark:text-emerald-400">
+          ₺{Math.round(c.totalSpent).toLocaleString("tr-TR")}
+        </span>
+      </td>
+
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-1 flex-wrap">
           {c.isVip && <Badge tone="amber" icon={Crown}>VIP</Badge>}
@@ -245,7 +252,7 @@ function CustomerRow({ c, onOpen }: RowProps) {
 function EmptyRow({ searching }: { searching: boolean }) {
   return (
     <tr>
-      <td colSpan={8} className="py-12 text-center">
+      <td colSpan={9} className="py-12 text-center">
         <div className="inline-flex flex-col items-center gap-2">
           <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
             <Baby className="w-5 h-5 text-slate-400" />

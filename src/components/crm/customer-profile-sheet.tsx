@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react"
 import {
   Phone, Wallet, Baby, Calendar, X, RefreshCw, AlertTriangle,
-  TrendingUp, History, CreditCard,
+  TrendingUp, History, CreditCard, Banknote,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getCustomerProfile } from "@/lib/services/customer.service"
+import {
+  getCustomerProfile, getCustomerPaymentBreakdown,
+  type CustomerPaymentBreakdown,
+} from "@/lib/services/customer.service"
 import { sumDiscountsForParent } from "@/lib/services/discount.service"
 import {
   type CustomerProfile, type CustomerSummary,
@@ -54,6 +57,7 @@ export function CustomerProfileSheet({ parentId, open, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [tags, setTags] = useState<string[]>([])
   const [discountTotal, setDiscountTotal] = useState<number>(0)
+  const [payBreakdown,  setPayBreakdown]  = useState<CustomerPaymentBreakdown | null>(null)
 
   const canEditTags = !!user && ["super_admin", "admin", "manager"].includes(user.role)
 
@@ -76,6 +80,9 @@ export function CustomerProfileSheet({ parentId, open, onClose }: Props) {
         // Async — keep the sheet snappy; the value just lights up once it loads.
         sumDiscountsForParent(parentId as string).then((n) => {
           if (!cancelled) setDiscountTotal(n)
+        })
+        getCustomerPaymentBreakdown(parentId as string).then((b) => {
+          if (!cancelled) setPayBreakdown(b)
         })
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Yüklenemedi")
@@ -167,6 +174,46 @@ export function CustomerProfileSheet({ parentId, open, onClose }: Props) {
                 <Kpi label="Cüzdan" value={fmtMoney(summary!.walletBalance)} icon={Wallet} tone="blue" />
                 <Kpi label="Çocuk"   value={summary!.childCount} icon={Baby} tone="amber" />
               </div>
+
+              {/* Payment method breakdown — how this parent typically pays */}
+              {payBreakdown && payBreakdown.total > 0 && (
+                <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 overflow-hidden">
+                  <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-slate-500" />
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
+                        Ödeme Yöntemi Dağılımı
+                      </p>
+                    </div>
+                    <p className="text-[10px] text-slate-500 tabular-nums">
+                      {payBreakdown.txCount} işlem · {fmtMoney(payBreakdown.total)}
+                    </p>
+                  </div>
+                  <div className="px-4 py-2.5">
+                    {/* Stacked ratio bar */}
+                    <div className="h-2 w-full rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 flex">
+                      {payBreakdown.cash > 0 && (
+                        <div className="h-full bg-emerald-500"
+                             style={{ width: `${(payBreakdown.cash / payBreakdown.total) * 100}%` }} />
+                      )}
+                      {payBreakdown.card > 0 && (
+                        <div className="h-full bg-sky-500"
+                             style={{ width: `${(payBreakdown.card / payBreakdown.total) * 100}%` }} />
+                      )}
+                      {payBreakdown.wallet > 0 && (
+                        <div className="h-full bg-violet-500"
+                             style={{ width: `${(payBreakdown.wallet / payBreakdown.total) * 100}%` }} />
+                      )}
+                    </div>
+                    {/* Rows */}
+                    <div className="mt-2.5 grid grid-cols-3 gap-2 text-xs">
+                      <PayCell icon={Banknote}   label="Nakit"  color="emerald" amount={payBreakdown.cash}   total={payBreakdown.total} />
+                      <PayCell icon={CreditCard} label="Kart"   color="sky"     amount={payBreakdown.card}   total={payBreakdown.total} />
+                      <PayCell icon={Wallet}     label="Cüzdan" color="violet"  amount={payBreakdown.wallet} total={payBreakdown.total} />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Lifetime discounts */}
               {discountTotal > 0 && (
@@ -268,6 +315,43 @@ function Kpi({ label, value, icon: Icon, tone }: {
         <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">{label}</p>
       </div>
       <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-white mt-1">{value}</p>
+    </div>
+  )
+}
+
+function PayCell({
+  icon: Icon, label, color, amount, total,
+}: {
+  icon: typeof CreditCard; label: string
+  color: "emerald" | "sky" | "violet"
+  amount: number; total: number
+}) {
+  const pct = total > 0 ? Math.round((amount / total) * 100) : 0
+  const palette: Record<string, string> = {
+    emerald: "text-emerald-600 dark:text-emerald-300",
+    sky:     "text-sky-600     dark:text-sky-300",
+    violet:  "text-violet-600  dark:text-violet-300",
+  }
+  const dot: Record<string, string> = {
+    emerald: "bg-emerald-500",
+    sky:     "bg-sky-500",
+    violet:  "bg-violet-500",
+  }
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <span className={cn("w-2 h-2 rounded-full flex-shrink-0", dot[color])} />
+      <div className="min-w-0">
+        <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
+          <Icon className="w-2.5 h-2.5" />
+          {label}
+        </div>
+        <div className="flex items-baseline gap-1.5 tabular-nums">
+          <span className={cn("text-sm font-bold", palette[color])}>
+            ₺{Math.round(amount).toLocaleString("tr-TR")}
+          </span>
+          <span className="text-[10px] text-slate-400">{pct}%</span>
+        </div>
+      </div>
     </div>
   )
 }
