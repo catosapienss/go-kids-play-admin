@@ -133,16 +133,31 @@ export function RecentTransactionsPanel({ limit = 60 }: { limit?: number }) {
 
         const sessionIds = payments.map((p) => p.session_id).filter((id): id is string => !!id)
         const orgIds     = orgPays.map((p) => p.organization_id)
-        const [sessionsRes, orgsRes] = await Promise.all([
+        const retailIds  = retail.filter((r) => !r.voided).map((r) => r.id)
+        const [sessionsRes, orgsRes, itemsRes] = await Promise.all([
           sessionIds.length
             ? supabase.from("sessions").select("id, child_name").in("id", sessionIds)
             : Promise.resolve({ data: [] }),
           orgIds.length
             ? supabase.from("organizations").select("id, child_name").in("id", orgIds)
             : Promise.resolve({ data: [] }),
+          retailIds.length
+            ? supabase.from("retail_sale_items").select("sale_id, product_name, quantity").in("sale_id", retailIds)
+            : Promise.resolve({ data: [] }),
         ])
         const sessionMap = new Map((sessionsRes.data as SessionLite[] ?? []).map((s) => [s.id, s.child_name ?? "—"]))
         const orgMap     = new Map((orgsRes.data as { id: string; child_name: string }[] ?? []).map((o) => [o.id, o.child_name]))
+
+        // Aggregate line items per sale so retail rows say "Çorap × 2 · Boyama × 1"
+        // instead of just "Perakende".
+        const retailItemsMap = new Map<string, string>()
+        for (const it of (itemsRes.data as { sale_id: string; product_name: string | null; quantity: number | string | null }[] ?? [])) {
+          const qty = Number(it.quantity ?? 1) || 1
+          const name = (it.product_name ?? "Ürün").trim() || "Ürün"
+          const label = qty > 1 ? `${name} × ${qty}` : name
+          const prev = retailItemsMap.get(it.sale_id)
+          retailItemsMap.set(it.sale_id, prev ? `${prev} · ${label}` : label)
+        }
 
         const collected: Row[] = []
         for (const p of payments) {
@@ -160,11 +175,14 @@ export function RecentTransactionsPanel({ limit = 60 }: { limit?: number }) {
         for (const r of retail) {
           if (r.voided) continue
           const c = num(r.cash_amount), k = num(r.card_amount)
+          // Prefer the actual line-items ("Çorap × 2 · Boyama × 1"). Fall
+          // back to the sale's free-text note, then a generic "Perakende".
+          const label = retailItemsMap.get(r.id) ?? r.notes ?? "Perakende"
           collected.push({
             id:     "r_" + r.id,
             at:     r.sold_at,
             source: "retail",
-            label:  r.notes ?? "Perakende",
+            label,
             cash: c, card: k, wallet: 0,
             total:  num(r.total_amount),
             method: pickMethod(c, k, 0),
