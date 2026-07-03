@@ -64,13 +64,19 @@ export function SuccessModal({ customer, kidsList, total, onClose }: SuccessModa
 
       {/* Modal */}
       <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        {/* Header */}
+        {/* Header — order per operator request: phone → child(ren) → parent */}
         <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-5 text-white text-center">
           <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2 animate-in zoom-in duration-300 delay-100">
             <CheckCircle2 className="w-6 h-6 text-white" />
           </div>
           <h2 className="text-lg font-bold">Giriş Başarılı</h2>
-          <p className="text-emerald-100 text-sm mt-0.5">{customer.name}</p>
+          <div className="mt-1 space-y-0.5 text-emerald-50 text-[13px]">
+            {customer.phone && <p className="tabular-nums font-semibold">{customer.phone}</p>}
+            <p className="font-bold">
+              {kidsList.map((c) => c.name).filter(Boolean).join(", ") || "—"}
+            </p>
+            <p className="text-emerald-100/85 text-xs">Veli: {customer.name}</p>
+          </div>
         </div>
 
         {/* PRIMARY: Entry code */}

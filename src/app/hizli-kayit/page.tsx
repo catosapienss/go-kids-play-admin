@@ -222,7 +222,7 @@ export default function HizliKayitPage() {
 
     try {
       const isUUID = (id: string) =>
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 
       // Capture the first created session so the discount row can reference it.
       let firstSessionId: string | null = null
@@ -244,33 +244,57 @@ export default function HizliKayitPage() {
         // Persist new children; existing (UUID) children already have DB records.
         let childId = child.id
         if (!isUUID(child.id)) {
-          childId = await createChild({
-            parent_id: selectedCustomer.id,
-            full_name: child.name,
-            age: typeof child.age === "number" ? child.age : parseInt(child.age as string) || 0,
-            allergies: (selectedCustomer as { allergies?: string }).allergies || undefined,
-          })
+          try {
+            childId = await createChild({
+              parent_id: selectedCustomer.id,
+              full_name: child.name,
+              age: typeof child.age === "number" ? child.age : parseInt(child.age as string) || 0,
+              allergies: (selectedCustomer as { allergies?: string }).allergies || undefined,
+            })
+          } catch (childErr: unknown) {
+            // eslint-disable-next-line no-console
+            console.error("[hizli-kayit] createChild failed", childErr, {
+              parentId: selectedCustomer.id, name: child.name,
+            })
+            const em = childErr instanceof Error ? childErr.message : String(childErr)
+            throw new Error(`Çocuk kaydı başarısız (${child.name}): ${em}`)
+          }
         }
 
         const mins = durationMinutes(child.duration)
-        const session = await createSession({
-          child_id: childId,
-          child_name: child.name,
-          child_age: typeof child.age === "number" ? child.age : parseInt(child.age as string) || 0,
-          parent_id: selectedCustomer.id,
-          parent_name: selectedCustomer.name,
-          parent_phone: selectedCustomer.phone,
-          staff_name: user?.fullName ?? "Personel",
-          duration_minutes: mins,
-          created_by: user?.id,
-        })
+        let session
+        try {
+          session = await createSession({
+            child_id: childId,
+            child_name: child.name,
+            child_age: typeof child.age === "number" ? child.age : parseInt(child.age as string) || 0,
+            parent_id: selectedCustomer.id,
+            parent_name: selectedCustomer.name,
+            parent_phone: selectedCustomer.phone,
+            staff_name: user?.fullName ?? "Personel",
+            duration_minutes: mins,
+            created_by: user?.id,
+          })
+        } catch (sessErr: unknown) {
+          // eslint-disable-next-line no-console
+          console.error("[hizli-kayit] createSession failed", sessErr, { childId, mins })
+          const em = sessErr instanceof Error ? sessErr.message : String(sessErr)
+          throw new Error(`Oturum oluşturulamadı (${child.name}): ${em}`)
+        }
 
-        await createPayment({
-          session_id: session.id,
-          cash_amount:   split.cash,
-          card_amount:   split.card,
-          wallet_amount: split.wallet,
-        })
+        try {
+          await createPayment({
+            session_id: session.id,
+            cash_amount:   split.cash,
+            card_amount:   split.card,
+            wallet_amount: split.wallet,
+          })
+        } catch (payErr: unknown) {
+          // eslint-disable-next-line no-console
+          console.error("[hizli-kayit] createPayment failed", payErr, { sessionId: session.id, split })
+          const em = payErr instanceof Error ? payErr.message : String(payErr)
+          throw new Error(`Ödeme kaydedilemedi (${child.name}): ${em}`)
+        }
 
         if (!firstSessionId) firstSessionId = session.id
       }
