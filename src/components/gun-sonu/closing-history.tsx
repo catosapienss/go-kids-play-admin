@@ -130,6 +130,16 @@ export function ClosingHistory() {
                       <DiffPair label="Kart"   expected={r.expectedCard}   counted={r.countedCard}   diff={r.diffCard}   />
                       <DiffPair label="Cüzdan" expected={r.expectedWallet} counted={r.countedWallet} diff={r.diffWallet} />
                     </div>
+                    {Number(r.meta?.left_in_drawer ?? 0) > 0 && (
+                      <div className="rounded-md border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/[0.05] px-3 py-2 flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-300">
+                          Kasada Bırakılan
+                        </span>
+                        <span className="text-sm font-bold tabular-nums text-amber-800 dark:text-amber-200">
+                          ₺{Number(r.meta.left_in_drawer).toLocaleString("tr-TR")}
+                        </span>
+                      </div>
+                    )}
                     {r.notes && (
                       <div>
                         <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1">Notlar</p>

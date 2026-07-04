@@ -45,6 +45,10 @@ export function DayEndClosingCard({ onClosed }: { onClosed?: (r: CashRegister) =
   const [countedCash,   setCountedCash]   = useState(0)
   const [countedCard,   setCountedCard]   = useState(0)
   const [countedWallet, setCountedWallet] = useState(0)
+  // Cash deliberately LEFT in the drawer overnight (float for the next day's
+  // opening change). Persisted in the closing row's meta so it's visible on
+  // the read-only summary and in ClosingHistory.
+  const [leftInDrawer,  setLeftInDrawer]  = useState(0)
   const [notes, setNotes] = useState("")
 
   const canClose = !!user && ["super_admin", "admin", "manager"].includes(user.role)
@@ -114,6 +118,7 @@ export function DayEndClosingCard({ onClosed }: { onClosed?: (r: CashRegister) =
         countedCard,
         countedWallet,
         notes: notes.trim(),
+        meta: { left_in_drawer: leftInDrawer },
       })
       setRegister(closed)
       toast.success("Kasa kapatıldı", {
@@ -166,6 +171,23 @@ export function DayEndClosingCard({ onClosed }: { onClosed?: (r: CashRegister) =
           <ClosedMethod label="Kart"   expected={register.expectedCard}   counted={register.countedCard}   diff={register.diffCard}   />
           <ClosedMethod label="Cüzdan" expected={register.expectedWallet} counted={register.countedWallet} diff={register.diffWallet} />
         </div>
+        {Number(register.meta?.left_in_drawer ?? 0) > 0 && (
+          <div className="px-6 pb-4 -mt-2">
+            <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/[0.05] px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-300">
+                  Kasada Bırakılan Nakit
+                </p>
+                <p className="text-[11px] text-amber-700/70 dark:text-amber-300/70 mt-0.5">
+                  Yarınki para üstü için tezgahta kalan
+                </p>
+              </div>
+              <span className="text-lg font-bold tabular-nums text-amber-800 dark:text-amber-200">
+                ₺{Number(register.meta.left_in_drawer).toLocaleString("tr-TR")}
+              </span>
+            </div>
+          </div>
+        )}
         {register.notes && (
           <div className="px-6 pb-5 -mt-2">
             <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1">Notlar</p>
@@ -249,6 +271,28 @@ export function DayEndClosingCard({ onClosed }: { onClosed?: (r: CashRegister) =
           )}>
             {isReconciled(totalDiff) ? "✓ ₺0" : (totalDiff > 0 ? "+" : "") + "₺" + fmt(totalDiff)}
           </p>
+        </div>
+      </div>
+
+      {/* Cash left in drawer — deliberate float for the next day. Stored
+          in meta.left_in_drawer so it shows on the closed summary too. */}
+      <div className="px-6 pb-4">
+        <label className="flex items-center gap-1 text-[11px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-300 mb-1">
+          Kasada Bırakılan Nakit
+          <span className="text-slate-400 normal-case tracking-normal">· yarınki para üstü için</span>
+        </label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">₺</span>
+          <input
+            type="number"
+            min={0}
+            step={5}
+            value={leftInDrawer || ""}
+            onChange={(e) => setLeftInDrawer(parseFloat(e.target.value) || 0)}
+            disabled={!canClose || submitting}
+            placeholder="Örn. 200"
+            className="w-full pl-8 pr-3 py-2 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/30 tabular-nums"
+          />
         </div>
       </div>
 
