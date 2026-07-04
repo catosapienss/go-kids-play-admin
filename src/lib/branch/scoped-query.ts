@@ -43,8 +43,11 @@ export function withBranchScope<Q extends EqChain<Q>>(query: Q, scope: BranchSco
     return query
   }
   if (!scope.branchId) {
-    // Non-super-admin without a branch should see *nothing* (defensive).
-    return query.eq("branch_id", "__no_branch__")
+    // Single-shop mode: user has no branch_id assigned. Return the query
+    // UNFILTERED — RLS is the authoritative guard now. Previous behaviour
+    // ("branch_id = __no_branch__") hard-hid all rows from staff who
+    // weren't wired to a branch, which broke every dashboard KPI.
+    return query
   }
   return query.eq("branch_id", scope.branchId)
 }
