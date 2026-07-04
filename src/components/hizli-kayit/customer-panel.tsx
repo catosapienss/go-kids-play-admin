@@ -225,27 +225,36 @@ export function CustomerPanel({ selectedCustomer, onSelect, onClear }: CustomerP
           {query.length === 0 && results.length > 0 && (
             <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1 pb-1">Son Veliler</p>
           )}
-          {results.map((parent) => (
-            <button
-              key={parent.id}
-              onClick={() => { onSelect(toCustomer(parent)); setQuery("") }}
-              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-violet-50 dark:hover:bg-violet-500/5 border border-transparent hover:border-violet-100 dark:hover:border-violet-500/20 transition-all text-left group"
-            >
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-500/20 dark:to-purple-500/20 flex items-center justify-center text-violet-600 dark:text-violet-400 text-sm font-bold flex-shrink-0">
-                {parent.full_name.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{parent.full_name}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{parent.phone} · {parent.children.length} çocuk</p>
-              </div>
-              {Number(parent.wallet_balance) > 0 && (
-                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex-shrink-0">
-                  ₺{parent.wallet_balance}
-                </span>
-              )}
-              <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-violet-500 transition-colors flex-shrink-0" />
-            </button>
-          ))}
+          {results.map((parent) => {
+            const kidNames = parent.children.map((c) => c.full_name).filter(Boolean).join(", ")
+            return (
+              <button
+                key={parent.id}
+                onClick={() => { onSelect(toCustomer(parent)); setQuery("") }}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-violet-50 dark:hover:bg-violet-500/5 border border-transparent hover:border-violet-100 dark:hover:border-violet-500/20 transition-all text-left group"
+              >
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-500/20 dark:to-purple-500/20 flex items-center justify-center text-violet-600 dark:text-violet-400 text-sm font-bold flex-shrink-0">
+                  {(parent.full_name || "?").charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  {/* Order: phone → child → parent (per operator request) */}
+                  <p className="text-sm font-bold text-slate-900 dark:text-white tabular-nums truncate">{parent.phone}</p>
+                  <p className="text-[12.5px] text-slate-700 dark:text-slate-300 truncate mt-0.5">
+                    {kidNames || <span className="italic text-slate-400">Çocuk kayıtlı değil</span>}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                    Veli · {parent.full_name}
+                  </p>
+                </div>
+                {Number(parent.wallet_balance) > 0 && (
+                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+                    ₺{parent.wallet_balance}
+                  </span>
+                )}
+                <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-violet-500 transition-colors flex-shrink-0" />
+              </button>
+            )
+          })}
         </div>
       )}
 
@@ -268,10 +277,18 @@ export function CustomerPanel({ selectedCustomer, onSelect, onClear }: CustomerP
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <p className="font-semibold text-base leading-tight">{selectedCustomer.name}</p>
-              <p className="text-violet-200 text-sm mt-0.5 flex items-center gap-1.5">
+              {/* Order: phone → child → parent (per operator request) */}
+              <p className="font-bold text-base leading-tight tabular-nums flex items-center gap-1.5">
                 <Phone className="w-3 h-3" />
                 {selectedCustomer.phone}
+              </p>
+              <p className="text-white text-[13px] leading-snug mt-1">
+                {selectedCustomer.children.length > 0
+                  ? selectedCustomer.children.map((c) => c.name).join(", ")
+                  : <span className="italic text-violet-200">Çocuk kayıtlı değil</span>}
+              </p>
+              <p className="text-violet-200 text-xs mt-0.5">
+                Veli · {selectedCustomer.name}
               </p>
               {selectedCustomer.walletBalance > 0 && (
                 <div className="flex items-center gap-1.5 mt-2">
