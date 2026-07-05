@@ -24,6 +24,70 @@ export async function searchParents(query: string): Promise<ParentWithChildren[]
   return (data ?? []) as ParentWithChildren[]
 }
 
+// ─── Phone as the unique customer key ────────────────────────────────────────
+//
+// Turkish numbers arrive in many shapes ("0532 123 45 67", "+90532…",
+// "5321234567"). Collapse to the bare 10-digit subscriber number so the same
+// person is always recognised regardless of how staff typed it.
+export function normalizePhone(raw: string): string {
+  let d = (raw || "").replace(/\D/g, "")
+  if (d.startsWith("90") && d.length === 12) d = d.slice(2)
+  if (d.startsWith("0")  && d.length === 11) d = d.slice(1)
+  return d
+}
+
+/**
+ * Exact-match lookup by phone — the returning-customer fast path. Returns the
+ * existing parent (with children) or null. Never creates anything.
+ *
+ * Uses a broad ilike prefilter (same limitation as searchParents for
+ * space-formatted storage) then a strict normalized-equality check so we only
+ * ever auto-load the ONE parent that truly owns this number.
+ */
+export async function getParentByPhone(phone: string): Promise<ParentWithChildren | null> {
+  const norm = normalizePhone(phone)
+  if (norm.length < 10) return null
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("parents")
+    .select("*, children(*)")
+    .ilike("phone", `%${norm}%`)
+    .limit(10)
+  if (error) throw error
+  const rows = (data ?? []) as ParentWithChildren[]
+  return rows.find((p) => normalizePhone(p.phone) === norm) ?? null
+}
+
+// ─── Returning-customer badge stats (read-only, tolerant) ───────────────────
+export interface ParentQuickStats {
+  visitCount:    number
+  isVip:         boolean
+  totalSpent:    number
+  walletBalance: number
+}
+
+/** Light summary for the returning-customer badge. Reads customer_summary;
+ *  returns null for brand-new parents (no row yet) or if the view is missing. */
+export async function getParentQuickStats(parentId: string): Promise<ParentQuickStats | null> {
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("customer_summary")
+      .select("visit_count, is_vip, total_spent, wallet_balance")
+      .eq("id", parentId)
+      .maybeSingle()
+    if (error || !data) return null
+    return {
+      visitCount:    Number((data as { visit_count?: number | string }).visit_count) || 0,
+      isVip:         !!(data as { is_vip?: boolean }).is_vip,
+      totalSpent:    Number((data as { total_spent?: number | string }).total_spent) || 0,
+      walletBalance: Number((data as { wallet_balance?: number | string }).wallet_balance) || 0,
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function getRecentParents(limit = 6): Promise<ParentWithChildren[]> {
   const supabase = createClient()
   const { data, error } = await supabase
@@ -38,6 +102,13 @@ export async function getRecentParents(limit = 6): Promise<ParentWithChildren[]>
 
 export async function createParent(input: CreateParentInput): Promise<ParentWithChildren> {
   const supabase = createClient()
+
+  // Phone is the unique customer key — never create a second row for a number
+  // that already exists. Check first, so a returning parent is reused instead
+  // of erroring with "Registration failed".
+  const existing = await getParentByPhone(input.phone).catch(() => null)
+  if (existing) return existing
+
   const { data, error } = await supabase
     .from("parents")
     .insert({
@@ -48,7 +119,15 @@ export async function createParent(input: CreateParentInput): Promise<ParentWith
     .select()
     .single()
 
-  if (error) throw error
+  if (error) {
+    // Lost a race (unique violation) — recover by loading the row that won.
+    const msg = error.message ?? ""
+    if (msg.includes("unique") || msg.includes("duplicate") || error.code === "23505") {
+      const recovered = await getParentByPhone(input.phone).catch(() => null)
+      if (recovered) return recovered
+    }
+    throw error
+  }
 
   void recordAudit({
     action: "customer.create",

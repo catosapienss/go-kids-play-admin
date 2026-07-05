@@ -1,9 +1,13 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Search, Plus, Phone, AlertCircle, Wallet, ChevronRight, X, User, StickyNote, Check, Loader2 } from "lucide-react"
+import { Search, Plus, Phone, AlertCircle, Wallet, ChevronRight, X, User, StickyNote, Check, Loader2, Crown, Repeat } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { searchParents, getRecentParents, createParent } from "@/lib/services/pos.service"
+import {
+  searchParents, getRecentParents, createParent,
+  getParentByPhone, getParentQuickStats, normalizePhone,
+  type ParentQuickStats,
+} from "@/lib/services/pos.service"
 import type { ParentWithChildren } from "@/types/operations"
 import type { Customer, NewCustomerForm } from "@/types/hizli-kayit"
 import { Badge } from "@/components/ui/badge"
@@ -43,11 +47,59 @@ export function CustomerPanel({ selectedCustomer, onSelect, onClear }: CustomerP
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Returning-customer detection inside the "Yeni Veli" form.
+  const [phoneChecking, setPhoneChecking] = useState(false)
+  const phoneDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Badge stats for the currently-selected customer.
+  const [badge, setBadge] = useState<ParentQuickStats | null>(null)
 
   // Load recent parents on mount
   useEffect(() => {
     getRecentParents(6).then(setResults).catch(() => setResults([]))
   }, [])
+
+  // ── Returning-customer badge — fetch light stats when a customer is loaded.
+  useEffect(() => {
+    setBadge(null)
+    if (!selectedCustomer) return
+    let cancelled = false
+    getParentQuickStats(selectedCustomer.id)
+      .then((s) => { if (!cancelled) setBadge(s) })
+      .catch(() => { /* badge is best-effort */ })
+    return () => { cancelled = true }
+  }, [selectedCustomer])
+
+  // ── Live phone lookup in the new-customer form. As soon as a full number is
+  // typed, if it already belongs to someone we AUTO-LOAD that parent instead of
+  // letting staff create a duplicate. Staff only ever types the phone.
+  useEffect(() => {
+    if (!showForm) return
+    if (phoneDebounceRef.current) clearTimeout(phoneDebounceRef.current)
+    const norm = normalizePhone(form.phone)
+    if (norm.length < 10) { setPhoneChecking(false); return }
+    setPhoneChecking(true)
+    phoneDebounceRef.current = setTimeout(async () => {
+      try {
+        const match = await getParentByPhone(form.phone)
+        if (match) {
+          // Returning customer — load existing record, no duplicate, no error.
+          onSelect(toCustomer(match))
+          setShowForm(false)
+          setForm(EMPTY_FORM)
+          const kids = match.children?.length ?? 0
+          toast.success(
+            `Kayıtlı müşteri yüklendi: ${match.full_name}` + (kids > 0 ? ` · ${kids} çocuk` : ""),
+          )
+        }
+      } catch {
+        /* lookup failure must not block manual entry */
+      } finally {
+        setPhoneChecking(false)
+      }
+    }, 400)
+    return () => { if (phoneDebounceRef.current) clearTimeout(phoneDebounceRef.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.phone, showForm])
 
   // Debounced search
   useEffect(() => {
@@ -74,11 +126,16 @@ export function CustomerPanel({ selectedCustomer, onSelect, onClear }: CustomerP
     if (!form.name || !form.phone) return
     setSaving(true)
     try {
+      // Reuse an existing parent if the phone is already on file — createParent
+      // is now duplicate-safe (checks phone first, recovers from races), so a
+      // returning customer is loaded instead of erroring.
       const parent = await createParent({
         full_name: form.name,
         phone: form.phone,
         notes: form.notes || undefined,
       })
+      const alreadyExisted = normalizePhone(parent.phone) === normalizePhone(form.phone)
+        && parent.full_name !== form.name
       onSelect(toCustomer(parent))
       setSaved(true)
       setTimeout(() => {
@@ -86,14 +143,10 @@ export function CustomerPanel({ selectedCustomer, onSelect, onClear }: CustomerP
         setForm(EMPTY_FORM)
         setSaved(false)
       }, 800)
-      toast.success("Veli kaydedildi")
+      toast.success(alreadyExisted ? "Kayıtlı müşteri yüklendi" : "Veli kaydedildi")
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Kayıt başarısız"
-      if (msg.includes("unique") || msg.includes("duplicate")) {
-        toast.error("Bu telefon numarası zaten kayıtlı")
-      } else {
-        toast.error("Veli kaydedilemedi: " + msg)
-      }
+      toast.error("Veli kaydedilemedi: " + msg)
     } finally {
       setSaving(false)
     }
@@ -139,16 +192,27 @@ export function CustomerPanel({ selectedCustomer, onSelect, onClear }: CustomerP
               </div>
             </div>
             <div className="col-span-2">
-              <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Telefon *</label>
+              <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">
+                Telefon * <span className="text-slate-400 font-normal">· kayıtlıysa otomatik yüklenir</span>
+              </label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 <input
-                  className="w-full pl-8 pr-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
+                  type="tel"
+                  autoFocus
+                  className="w-full pl-8 pr-9 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
                   placeholder="0532 123 45 67"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
+                {phoneChecking && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-violet-500 animate-spin" />
+                )}
               </div>
+              <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
+                <Search className="w-3 h-3" />
+                Telefonu yaz — numara sistemde varsa müşteri kendiliğinden gelir, tekrar kayıt gerekmez.
+              </p>
             </div>
             <div>
               <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Alerji</label>
@@ -278,6 +342,30 @@ export function CustomerPanel({ selectedCustomer, onSelect, onClear }: CustomerP
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
+
+              {/* Returning / VIP recognition badge — lets staff spot a familiar
+                  customer at a glance. Best-effort; lights up once stats load. */}
+              {badge && (badge.isVip || badge.visitCount > 0) && (
+                <div className="inline-flex items-center gap-1.5 mb-2 px-2 py-1 rounded-lg bg-white/20 backdrop-blur-sm">
+                  {badge.isVip ? (
+                    <>
+                      <Crown className="w-3.5 h-3.5 text-amber-200" />
+                      <span className="text-xs font-bold">VIP Müşteri</span>
+                    </>
+                  ) : (
+                    <>
+                      <Repeat className="w-3.5 h-3.5 text-violet-100" />
+                      <span className="text-xs font-bold">Dönen Müşteri</span>
+                    </>
+                  )}
+                  {badge.visitCount > 0 && (
+                    <span className="text-[11px] text-violet-100 font-semibold tabular-nums">
+                      · {badge.visitCount} ziyaret
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Order: phone → child → parent (per operator request) */}
               <p className="font-bold text-base leading-tight tabular-nums flex items-center gap-1.5">
                 <Phone className="w-3 h-3" />
