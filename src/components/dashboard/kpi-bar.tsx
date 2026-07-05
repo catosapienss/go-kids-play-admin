@@ -66,7 +66,6 @@ function KpiCard({ label, value, hint, icon: Icon, tone, pulse }: KpiCardProps) 
 }
 
 function formatTRY(n: number): string {
-  if (n >= 1000) return `₺${(n / 1000).toFixed(1).replace(".0", "")}k`
   return `₺${Math.round(n).toLocaleString("tr-TR")}`
 }
 

@@ -28,7 +28,13 @@ import { cn } from "@/lib/utils"
 
 const fmt = (n: number) => `₺${n.toLocaleString("tr-TR", { minimumFractionDigits: 0 })}`
 
-export function QuickSale() {
+interface QuickSaleProps {
+  /** Fired after every successful checkout — lets the page refresh the
+   *  day-summary panel without a reload. */
+  onSaleComplete?: () => void
+}
+
+export function QuickSale({ onSaleComplete }: QuickSaleProps = {}) {
   const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -128,6 +134,7 @@ export function QuickSale() {
       setLastSale(result)
       resetCart()
       toast.success(`Satış tamamlandı · ${fmt(result.total)}`)
+      onSaleComplete?.()
     } catch (e) {
       toast.error("Satış kaydedilemedi: " + (e instanceof Error ? e.message.slice(0, 120) : "Bilinmeyen hata"))
     } finally {

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { getStatus, formatTime } from "@/types/aktif-oyun"
 import type { ActiveSession } from "@/types/aktif-oyun"
-import { Plus, LogOut, Pause, Play, Sparkles, Clock } from "lucide-react"
+import { Plus, LogOut, Pause, Play, Sparkles, Clock, StickyNote } from "lucide-react"
 import { ReprintLabelsButton } from "./reprint-labels-button"
 
 // ─── Compact / High-Density Session Card ─────────────────────────────────────
@@ -75,14 +75,21 @@ export function CompactSessionCard({
   void onCancel
 
   const isUnlimited = session.totalMinutes === 0
+  const status = getStatus(session)
+  const isExpired  = status === "expired"
+  const isExpiring = status === "expiring"
   const s = statusStyle(session)
 
   return (
     <div className={cn(
-      "group relative rounded-lg border border-slate-200/70 dark:border-slate-800/70",
-      "bg-white dark:bg-slate-900 overflow-hidden",
-      "hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700",
-      "transition-shadow",
+      "group relative rounded-lg border overflow-hidden transition-shadow",
+      "hover:shadow-md",
+      // Full-card tint so status is readable across the room, not just the stripe.
+      isExpired
+        ? "border-rose-400 dark:border-rose-500/60 bg-rose-50 dark:bg-rose-500/[0.10] ring-1 ring-rose-500/30"
+        : isExpiring
+          ? "border-amber-300 dark:border-amber-500/40 bg-amber-50/70 dark:bg-amber-500/[0.06]"
+          : "border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700",
     )}>
       {/* Left status stripe — read at a glance across rows */}
       <div className={cn("absolute top-0 left-0 bottom-0 w-1", s.stripe)} />
@@ -99,21 +106,46 @@ export function CompactSessionCard({
         {/* Name + meta */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
+            {session.dailySeq != null && (
+              <span className="text-[11px] font-black text-violet-600 dark:text-violet-400 tabular-nums flex-shrink-0" title="Günlük sıra">
+                #{session.dailySeq}
+              </span>
+            )}
             <p className="text-[13px] font-bold text-slate-900 dark:text-white truncate leading-tight">
               {session.childName}
             </p>
             {isUnlimited && <Sparkles className="w-3 h-3 text-fuchsia-500 flex-shrink-0" />}
+            {session.childNotes && (
+              <StickyNote
+                className="w-3 h-3 text-amber-500 flex-shrink-0"
+                aria-label={session.childNotes}
+              />
+            )}
           </div>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate leading-tight">
-            {session.entryTime} · {session.packageType}
+          <p
+            className={cn(
+              "text-[10px] truncate leading-tight",
+              session.childNotes
+                ? "text-amber-700 dark:text-amber-400 font-semibold"
+                : "text-slate-500 dark:text-slate-400",
+            )}
+            title={session.childNotes ?? undefined}
+          >
+            {session.childNotes ?? `${session.entryTime} · ${session.packageType}`}
           </p>
         </div>
 
-        {/* Countdown */}
+        {/* Countdown / expired label */}
         <div className={cn("text-right tabular-nums font-mono", s.timerFg)}>
-          <p className="text-[15px] font-bold leading-none">
-            {isUnlimited ? "∞" : formatTime(session.remainingSeconds)}
-          </p>
+          {isExpired ? (
+            <p className="text-[10px] font-black tracking-wide bg-rose-600 text-white rounded px-1.5 py-1 leading-none">
+              SÜRESİ BİTTİ
+            </p>
+          ) : (
+            <p className="text-[15px] font-bold leading-none">
+              {isUnlimited ? "∞" : formatTime(session.remainingSeconds)}
+            </p>
+          )}
         </div>
       </div>
 

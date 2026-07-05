@@ -5,7 +5,7 @@ import {
   Users, UserPlus, Repeat, CalendarCheck, Search, X, Loader2,
   Phone, Baby, Crown, Cake, BadgeCheck, ChevronRight, Hash, Clock,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, calendarDaysAgo } from "@/lib/utils"
 import { listCustomers, getCrmStats, type CrmTableRow, type CrmStats } from "@/lib/services/crm-dashboard.service"
 import { CustomerProfileSheet } from "./customer-profile-sheet"
 
@@ -30,8 +30,9 @@ function fmtPhone(p: string): string {
 
 function fmtRelative(iso: string | null): string {
   if (!iso) return "—"
-  const diff = Date.now() - new Date(iso).getTime()
-  const d = Math.floor(diff / 86_400_000)
+  // Calendar-day based: "Bugün" only for the current date, never a rolling 24h.
+  const d = calendarDaysAgo(iso)
+  if (isNaN(d)) return "—"
   if (d <= 0)  return "Bugün"
   if (d === 1) return "Dün"
   if (d < 7)   return `${d} gün önce`
@@ -42,7 +43,8 @@ function fmtRelative(iso: string | null): string {
 
 function lastVisitTone(iso: string | null): string {
   if (!iso) return "text-slate-400"
-  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+  const d = calendarDaysAgo(iso)
+  if (isNaN(d)) return "text-slate-400"
   if (d <= 1)  return "text-emerald-600 dark:text-emerald-400"
   if (d <= 7)  return "text-sky-600     dark:text-sky-400"
   if (d <= 30) return "text-amber-600   dark:text-amber-400"

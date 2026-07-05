@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { X, Users, Baby } from "lucide-react"
+import { X, Users, Baby, StickyNote } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ChildEntry } from "@/types/hizli-kayit"
 
@@ -36,6 +36,7 @@ export function FastChildrenInput({
 }: Props) {
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const selectedChild = kidsList.find((c) => c.id === selectedChildId) ?? null
 
   // Auto-focus the input on mount so staff can start typing immediately.
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -153,6 +154,25 @@ export function FastChildrenInput({
           </p>
         </div>
       )}
+
+      {/* Note field — bound to the SELECTED child chip. Persisted to
+          children.notes + snapshotted onto the session at submit. */}
+      {selectedChild && (
+        <div className="rounded-xl border border-amber-200/70 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/[0.04] p-2.5">
+          <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-1.5">
+            <StickyNote className="w-3 h-3" />
+            Not · {selectedChild.name || "Çocuk"}
+            <span className="normal-case tracking-normal font-medium text-amber-600/70 dark:text-amber-400/60">(opsiyonel)</span>
+          </label>
+          <textarea
+            value={selectedChild.note ?? ""}
+            onChange={(e) => onUpdate(selectedChild.id, { note: e.target.value })}
+            rows={2}
+            placeholder="Örn: Ateşe alerjisi var · Annesi arandığında haber ver · Çorap teslim edildi"
+            className="w-full px-2.5 py-2 rounded-lg border border-amber-200 dark:border-amber-500/20 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-amber-500 resize-none"
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -208,6 +228,12 @@ function ChildChip({
         )}>
           {child.duration === "free" ? "∞" : `${child.duration}dk`}
         </span>
+      )}
+      {!!child.note?.trim() && (
+        <StickyNote
+          className={cn("w-3 h-3 flex-shrink-0", selected ? "text-amber-200" : "text-amber-500")}
+          aria-label="Not var"
+        />
       )}
       <button
         onClick={(e) => { e.stopPropagation(); onRemove() }}

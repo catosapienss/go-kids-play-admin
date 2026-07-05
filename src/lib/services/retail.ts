@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client"
 import type {
-  CartLine, DailyRevenueBreakdown, PaymentMethod, Product, RetailTodaySummary,
+  CartLine, DailyRevenueBreakdown, PaymentMethod, Product,
+  RetailDayStats, RetailSaleListRow, RetailTodaySummary,
 } from "@/types/retail"
 
 // ─── Retail service ──────────────────────────────────────────────────────────
@@ -107,6 +108,78 @@ export async function checkoutSale(input: {
   if (itemsErr) throw itemsErr
 
   return { saleId: sale.id as string, total }
+}
+
+// ─── Day feed + finance summary (staff-visible, plain selects w/ RLS) ────────
+
+function todayStartIso(): string {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString()
+}
+
+/**
+ * Today's sales, newest first, with a compact per-sale item label
+ * ("Çorap × 2 · Su × 1") and the tender split. Powers both the sales feed
+ * and the finance summary strip on /perakende — one pair of reads, no RPC,
+ * so it works for every authenticated role.
+ */
+export async function listTodayRetailSales(): Promise<RetailSaleListRow[]> {
+  const supabase = createClient()
+
+  const { data: sales, error } = await supabase
+    .from("retail_sales")
+    .select("id, sold_at, payment_method, total_amount, cash_amount, card_amount, notes, voided")
+    .gte("sold_at", todayStartIso())
+    .order("sold_at", { ascending: false })
+    .limit(300)
+  if (error) throw error
+
+  const live = (sales ?? []).filter((s) => !(s.voided as boolean))
+  if (live.length === 0) return []
+
+  const ids = live.map((s) => s.id as string)
+  const { data: items } = await supabase
+    .from("retail_sale_items")
+    .select("sale_id, product_name, quantity")
+    .in("sale_id", ids)
+
+  const labelMap = new Map<string, string>()
+  const countMap = new Map<string, number>()
+  for (const it of (items ?? []) as Array<{ sale_id: string; product_name: string | null; quantity: number | string | null }>) {
+    const qty = Number(it.quantity ?? 1) || 1
+    const name = (it.product_name ?? "Ürün").trim() || "Ürün"
+    const label = qty > 1 ? `${name} × ${qty}` : name
+    const prev = labelMap.get(it.sale_id)
+    labelMap.set(it.sale_id, prev ? `${prev} · ${label}` : label)
+    countMap.set(it.sale_id, (countMap.get(it.sale_id) ?? 0) + qty)
+  }
+
+  return live.map((s): RetailSaleListRow => ({
+    id:            s.id as string,
+    soldAt:        s.sold_at as string,
+    paymentMethod: (s.payment_method as PaymentMethod) ?? "cash",
+    totalAmount:   Number(s.total_amount ?? 0),
+    cashAmount:    Number(s.cash_amount ?? 0),
+    cardAmount:    Number(s.card_amount ?? 0),
+    itemsLabel:    labelMap.get(s.id as string) ?? ((s.notes as string | null) ?? "Perakende"),
+    itemCount:     countMap.get(s.id as string) ?? 0,
+    notes:         (s.notes as string | null) ?? null,
+  }))
+}
+
+/** Aggregate the day feed into the finance summary strip numbers. */
+export function summariseRetailDay(rows: RetailSaleListRow[]): RetailDayStats {
+  return rows.reduce<RetailDayStats>(
+    (acc, r) => ({
+      cashTotal:  acc.cashTotal  + r.cashAmount,
+      cardTotal:  acc.cardTotal  + r.cardAmount,
+      grandTotal: acc.grandTotal + r.totalAmount,
+      itemsSold:  acc.itemsSold  + r.itemCount,
+      saleCount:  acc.saleCount  + 1,
+    }),
+    { cashTotal: 0, cardTotal: 0, grandTotal: 0, itemsSold: 0, saleCount: 0 },
+  )
 }
 
 // ─── Reporting RPCs ──────────────────────────────────────────────────────────

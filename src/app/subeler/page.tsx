@@ -15,7 +15,6 @@ import { isSuperAdmin } from "@/types/auth"
 // performance, multi-location reporting). For now it's deliberately minimal.
 
 function fmtTRY(n: number): string {
-  if (n >= 1000) return `₺${(n / 1000).toFixed(1).replace(".0", "")}k`
   return `₺${Math.round(n).toLocaleString("tr-TR")}`
 }
 

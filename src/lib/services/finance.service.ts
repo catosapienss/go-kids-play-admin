@@ -271,30 +271,45 @@ export async function getTodayFinanceSummary() {
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
 
-  const [paymentsRes, walletsRes, refundsRes] = await Promise.all([
+  const [paymentsRes, walletsRes, refundsRes, retailRes] = await Promise.all([
     supabase
       .from("payments")
       .select("cash_amount, card_amount, wallet_amount, total_amount")
       .gte("created_at", todayStart.toISOString()),
     supabase
       .from("wallet_transactions")
-      .select("type, amount")
+      .select("type, amount, method")
       .gte("created_at", todayStart.toISOString()),
     supabase
       .from("refund_logs")
       .select("refund_amount")
       .gte("created_at", todayStart.toISOString()),
+    // Retail tenders the same drawer / POS terminal — must be part of the
+    // cash & card totals or the day-end will never reconcile to the terminal.
+    supabase
+      .from("retail_sales")
+      .select("cash_amount, card_amount, total_amount, voided")
+      .gte("sold_at", todayStart.toISOString()),
   ])
 
   const payments = paymentsRes.data ?? []
   const walletTxs = walletsRes.data ?? []
   const refunds = refundsRes.data ?? []
+  const retail = (retailRes.data ?? []).filter((r) => !(r as { voided?: boolean }).voided)
 
-  const totalCash   = payments.reduce((s, p) => s + Number(p.cash_amount), 0)
-  const totalCard   = payments.reduce((s, p) => s + Number(p.card_amount), 0)
+  const retailCash = retail.reduce((s, r) => s + Number((r as { cash_amount?: number }).cash_amount ?? 0), 0)
+  const retailCard = retail.reduce((s, r) => s + Number((r as { card_amount?: number }).card_amount ?? 0), 0)
+  const retailRevenue = retail.reduce((s, r) => s + Number((r as { total_amount?: number }).total_amount ?? 0), 0)
+
+  const totalCash   = payments.reduce((s, p) => s + Number(p.cash_amount), 0) + retailCash
+  const totalCard   = payments.reduce((s, p) => s + Number(p.card_amount), 0) + retailCard
   const totalWallet = payments.reduce((s, p) => s + Number(p.wallet_amount), 0)
-  const totalRevenue = payments.reduce((s, p) => s + Number(p.total_amount), 0)
-  const walletLoaded = walletTxs.filter((t) => t.type === "load").reduce((s, t) => s + Number(t.amount), 0)
+  const totalRevenue = payments.reduce((s, p) => s + Number(p.total_amount), 0) + retailRevenue
+
+  const loads = walletTxs.filter((t) => t.type === "load")
+  const walletLoaded     = loads.reduce((s, t) => s + Number(t.amount), 0)
+  const walletCardLoaded = loads.filter((t) => t.method === "card").reduce((s, t) => s + Number(t.amount), 0)
+  const walletCashLoaded = loads.filter((t) => t.method === "cash").reduce((s, t) => s + Number(t.amount), 0)
   const totalRefunded = refunds.reduce((s, r) => s + Number(r.refund_amount), 0)
 
   return {
@@ -303,8 +318,15 @@ export async function getTodayFinanceSummary() {
     totalWallet,
     totalRevenue,
     walletLoaded,
+    walletCardLoaded,
+    walletCashLoaded,
+    retailCash,
+    retailCard,
+    retailRevenue,
+    cardTendered: totalCard + walletCardLoaded,
+    cashTendered: totalCash + walletCashLoaded,
     totalRefunded,
-    txCount: payments.length,
+    txCount: payments.length + retail.length,
     netRevenue: totalRevenue - totalRefunded,
   }
 }

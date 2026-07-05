@@ -5,6 +5,7 @@ export type FilterType = "all" | "expiring" | "vip" | "new" | "paused"
 
 export interface ActiveSession {
   id: string
+  childId: string | null
   childName: string
   childAge: number
   parentId: string
@@ -18,6 +19,10 @@ export interface ActiveSession {
   staffName: string
   isVip: boolean
   isPaused: boolean
+  /** Staff note ("Ateşe alerjisi var", "Çorap teslim edildi", …). */
+  childNotes: string | null
+  /** Sequential per-day label number (null for sessions predating migration 020). */
+  dailySeq: number | null
 }
 
 export interface LiveEvent {

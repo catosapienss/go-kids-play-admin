@@ -4,7 +4,7 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts"
-import { cn } from "@/lib/utils"
+import { cn, formatNumberTR } from "@/lib/utils"
 import type { HourlyData, WeeklyData, DaySummary } from "@/types/cuzdan"
 
 interface TooltipProps {
@@ -69,7 +69,7 @@ export function AnalyticsSection({ hourlyData, weeklyData, summary }: AnalyticsS
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-100 dark:text-slate-800" vertical={false} />
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: "currentColor" }} className="text-slate-400" axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: "currentColor" }} className="text-slate-400" axisLine={false} tickLine={false} tickFormatter={(v) => `₺${(v / 1000).toFixed(0)}k`} />
+            <YAxis tick={{ fontSize: 11, fill: "currentColor" }} className="text-slate-400" axisLine={false} tickLine={false} width={70} tickFormatter={(v) => `₺${formatNumberTR(Math.round(Number(v)))}`} />
             <Tooltip content={<WeeklyTooltip />} />
             <Area type="monotone" dataKey="revenue" stroke="#7c3aed" strokeWidth={2} fill="url(#weeklyGrad)" dot={false} activeDot={{ r: 4, fill: "#7c3aed" }} />
           </AreaChart>

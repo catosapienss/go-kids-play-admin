@@ -11,6 +11,7 @@ export function dbRowToActiveSession(row: DbSessionRow): ActiveSession {
 
   return {
     id: row.id,
+    childId: row.child_id ?? null,
     childName: row.child_name,
     childAge: row.child_age,
     parentId: row.parent_id ?? "",
@@ -24,6 +25,8 @@ export function dbRowToActiveSession(row: DbSessionRow): ActiveSession {
     staffName: row.staff_name,
     isVip: false,
     isPaused: row.status === "paused",
+    childNotes: row.child_notes?.trim() ? row.child_notes.trim() : null,
+    dailySeq: row.daily_seq ?? null,
   }
 }
 
@@ -61,6 +64,37 @@ export async function resumeSession(sessionId: string): Promise<void> {
   const supabase = createClient()
   const { error } = await supabase.rpc("resume_session", { p_session_id: sessionId })
   if (error) throw error
+}
+
+/**
+ * Update the staff note on an active session (sessions.child_notes) and keep
+ * the child master record (children.notes) in sync so the note survives into
+ * the next visit. Session update is the primary write; the children sync is
+ * best-effort and never fails the call.
+ */
+export async function updateSessionChildNotes(
+  sessionId: string,
+  childId: string | null,
+  notes: string | null,
+): Promise<void> {
+  const supabase = createClient()
+  const value = notes?.trim() ? notes.trim() : null
+
+  const { error } = await supabase
+    .from("sessions")
+    .update({ child_notes: value })
+    .eq("id", sessionId)
+  if (error) throw error
+
+  if (childId) {
+    void supabase
+      .from("children")
+      .update({ notes: value })
+      .eq("id", childId)
+      .then(({ error: e }) => {
+        if (e) console.warn("[session] children.notes sync failed", e)
+      })
+  }
 }
 
 export async function endSession(sessionId: string): Promise<void> {
@@ -144,6 +178,7 @@ export async function fetchCompletionLog(opts: {
   let q = supabase
     .from("session_completion_log")
     .select("*")
+    .order("actual_end", { ascending: false, nullsFirst: false })
     .limit(opts.limit ?? 50)
 
   if (opts.filter === "early")  q = q.eq("early_exit", true)

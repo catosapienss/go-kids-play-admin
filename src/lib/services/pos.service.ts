@@ -61,20 +61,60 @@ export async function createParent(input: CreateParentInput): Promise<ParentWith
   return { ...data, children: [] } as ParentWithChildren
 }
 
+// PostgREST rejects writes referencing columns missing from the schema cache.
+// The notes columns arrive with migration 019 — until it runs on production,
+// fall back to the note-less write so registration NEVER breaks.
+function isMissingColumnError(err: unknown, column: string): boolean {
+  const msg =
+    err instanceof Error
+      ? err.message
+      : typeof err === "object" && err !== null && "message" in err
+        ? String((err as { message: unknown }).message)
+        : String(err)
+  return msg.includes(column) && (msg.includes("column") || msg.includes("schema cache"))
+}
+
 export async function createChild(input: CreateChildInput): Promise<string> {
   const supabase = createClient()
-  const { data, error } = await supabase
+  const base = {
+    parent_id: input.parent_id,
+    full_name: input.full_name,
+    age: input.age,
+    allergies: input.allergies ?? null,
+  }
+  const note = input.notes?.trim()
+  const payload: Record<string, unknown> = { ...base }
+  if (note) payload.notes = note
+
+  let { data, error } = await supabase
     .from("children")
-    .insert({
-      parent_id: input.parent_id,
-      full_name: input.full_name,
-      age: input.age,
-      allergies: input.allergies ?? null,
-    })
+    .insert(payload)
     .select("id")
     .single()
+  if (error && note && isMissingColumnError(error, "notes")) {
+    // Migration 019 not applied yet — retry without the note.
+    ;({ data, error } = await supabase.from("children").insert(base).select("id").single())
+  }
   if (error) throw error
-  return data.id as string
+  return data!.id as string
+}
+
+/** Update the persistent note on a child master record (children.notes). */
+export async function updateChildNotes(childId: string, notes: string | null): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("children")
+    .update({ notes: notes?.trim() ? notes.trim() : null })
+    .eq("id", childId)
+  if (error) throw error
+
+  void recordAudit({
+    action: "child.note.update",
+    severity: "info",
+    entityType: "child",
+    entityId: childId,
+    meta: { notes: notes ?? null },
+  })
 }
 
 export async function createSession(input: CreateSessionInput): Promise<DbSession> {
@@ -84,25 +124,34 @@ export async function createSession(input: CreateSessionInput): Promise<DbSessio
     ? null
     : new Date(Date.now() + input.duration_minutes * 60 * 1000).toISOString()
 
-  const { data, error } = await supabase
+  const base = {
+    child_id: input.child_id,
+    child_name: input.child_name,
+    child_age: input.child_age,
+    parent_id: input.parent_id,
+    parent_name: input.parent_name,
+    parent_phone: input.parent_phone,
+    staff_name: input.staff_name,
+    start_time: startTime,
+    end_time: endTime,
+    duration_minutes: input.duration_minutes,
+    remaining_minutes: input.duration_minutes,
+    status: "active",
+    created_by: input.created_by ?? null,
+  }
+  const note = input.child_notes?.trim()
+  const payload: Record<string, unknown> = { ...base }
+  if (note) payload.child_notes = note
+
+  let { data, error } = await supabase
     .from("sessions")
-    .insert({
-      child_id: input.child_id,
-      child_name: input.child_name,
-      child_age: input.child_age,
-      parent_id: input.parent_id,
-      parent_name: input.parent_name,
-      parent_phone: input.parent_phone,
-      staff_name: input.staff_name,
-      start_time: startTime,
-      end_time: endTime,
-      duration_minutes: input.duration_minutes,
-      remaining_minutes: input.duration_minutes,
-      status: "active",
-      created_by: input.created_by ?? null,
-    })
+    .insert(payload)
     .select()
     .single()
+  if (error && note && isMissingColumnError(error, "child_notes")) {
+    // Migration 019 not applied yet — retry without the note snapshot.
+    ;({ data, error } = await supabase.from("sessions").insert(base).select().single())
+  }
 
   if (error) throw error
 

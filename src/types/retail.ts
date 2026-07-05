@@ -71,6 +71,28 @@ export interface RetailSaleItemInsert {
   line_total: number
 }
 
+/** Day-level finance summary shown to ALL staff on /perakende. */
+export interface RetailDayStats {
+  cashTotal:  number
+  cardTotal:  number
+  grandTotal: number
+  itemsSold:  number    // Σ quantity across all line items
+  saleCount:  number    // number of (non-voided) sales
+}
+
+/** One row of the day's sales feed (newest first). */
+export interface RetailSaleListRow {
+  id:            string
+  soldAt:        string          // ISO
+  paymentMethod: PaymentMethod
+  totalAmount:   number
+  cashAmount:    number
+  cardAmount:    number
+  itemsLabel:    string          // "Çorap × 2 · Su × 1"
+  itemCount:     number          // Σ quantity in this sale
+  notes:         string | null
+}
+
 export interface RetailTodaySummary {
   totals: {
     total_revenue: number

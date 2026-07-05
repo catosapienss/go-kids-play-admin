@@ -25,6 +25,10 @@ export type DerivedMethod = "cash" | "card" | "wallet" | "mixed" | "free" | "non
 export interface SessionPaymentSummary {
   total:  number
   method: DerivedMethod
+  /** Per-tender breakdown so "mixed" rows can render Nakit ₺X + Kart ₺Y. */
+  cash:   number
+  card:   number
+  wallet: number
 }
 
 interface PaymentRow {
@@ -92,6 +96,9 @@ export function useSessionPayments(
           out[id] = {
             total:  rows.reduce((s, r) => s + num(r.total_amount), 0),
             method: pickMethod(rows),
+            cash:   rows.reduce((s, r) => s + num(r.cash_amount), 0),
+            card:   rows.reduce((s, r) => s + num(r.card_amount), 0),
+            wallet: rows.reduce((s, r) => s + num(r.wallet_amount), 0),
           }
         }
         setSummary(out)

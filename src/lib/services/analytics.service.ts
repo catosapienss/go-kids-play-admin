@@ -32,13 +32,27 @@ export interface DashboardMetrics {
   activeSessions: number        // currently active
   expiringSoon: number          // < 10 min remaining
   unlimitedActive: number       // free-play / unlimited active
-  totalRevenue: number          // today
-  totalCash: number
-  totalCard: number
-  totalWallet: number
-  walletLoaded: number
+  totalRevenue: number          // today — game + extension + retail
+  totalCash: number             // cash REVENUE (game + extension + retail)
+  totalCard: number             // card REVENUE (game + extension + retail)
+  totalWallet: number           // wallet spent as tender on sessions
+  walletLoaded: number          // total wallet top-ups (cash + card)
   totalRefunded: number
   netRevenue: number
+
+  // ── Retail split (previously missing entirely from the dashboard) ──────────
+  retailCash: number
+  retailCard: number
+  retailRevenue: number
+
+  // ── POS terminal reconciliation ───────────────────────────────────────────
+  // Wallet top-ups physically swipe the POS terminal but are NOT revenue
+  // (they are prepaid credit). These fields let the Day-End panel show a card
+  // figure that matches the physical terminal without double-counting revenue.
+  walletCardLoaded: number      // card top-ups → hit the POS terminal
+  walletCashLoaded: number      // cash top-ups → hit the drawer
+  cardTendered: number          // totalCard + walletCardLoaded (match to POS)
+  cashTendered: number          // totalCash + walletCashLoaded (match to drawer)
 }
 
 export interface HourlyBucket {
@@ -105,17 +119,23 @@ export async function getDashboardMetrics(scope?: BranchScope): Promise<Dashboar
   // • "Bugün Giriş" is the number of sessions that *started* today.
   // Previously a single `.gte("created_at", today)` query drove both, which
   // hid overnight sessions from the live count.
-  const [activeRes, todaySessionsRes, paymentsRes, walletTxsRes, refundsRes] = await Promise.all([
+  const [activeRes, todaySessionsRes, paymentsRes, walletTxsRes, refundsRes, retailRes] = await Promise.all([
     s(supabase.from("sessions").select("id, status, duration_minutes, end_time, paused_remaining_seconds, branch_id"), scope)
       .in("status", ["active", "paused"]),
     s(supabase.from("sessions").select("id, created_at, branch_id"), scope)
       .gte("created_at", today.toISOString()),
     s(supabase.from("payments").select("cash_amount, card_amount, wallet_amount, total_amount, branch_id"), scope)
       .gte("created_at", today.toISOString()),
-    s(supabase.from("wallet_transactions").select("type, amount, branch_id"), scope)
+    s(supabase.from("wallet_transactions").select("type, amount, method, branch_id"), scope)
       .gte("created_at", today.toISOString()),
     s(supabase.from("refund_logs").select("refund_amount, branch_id"), scope)
       .gte("created_at", today.toISOString()),
+    // Retail sales tender the SAME physical POS terminal / cash drawer as
+    // sessions. Omitting them was the root cause of the daily card mismatch
+    // (a ₺50 sock paid by card showed on the terminal but not in the app).
+    // Not branch-scoped: retail_sales.branch_id is not yet populated, so a
+    // branch filter would silently drop every retail row.
+    fetchTodayRetail(supabase, today),
   ])
 
   const liveSessions = activeRes.data ?? []
@@ -123,6 +143,7 @@ export async function getDashboardMetrics(scope?: BranchScope): Promise<Dashboar
   const payments = paymentsRes.data ?? []
   const walletTxs = walletTxsRes.data ?? []
   const refunds = refundsRes.data ?? []
+  const retail = retailRes
 
   const now = Date.now()
   const remainingSec = (s: { status: string; end_time: string | null; paused_remaining_seconds: number | null; duration_minutes: number }) => {
@@ -136,11 +157,29 @@ export async function getDashboardMetrics(scope?: BranchScope): Promise<Dashboar
   const expiringSoon = liveSessions.filter((s) => s.duration_minutes > 0 && remainingSec(s) <= 600).length
   const unlimitedActive = liveSessions.filter((s) => s.duration_minutes === 0).length
 
-  const totalCash = payments.reduce((s, p) => s + Number(p.cash_amount), 0)
-  const totalCard = payments.reduce((s, p) => s + Number(p.card_amount), 0)
+  // Session + extension tender (payments table).
+  const payCash = payments.reduce((s, p) => s + Number(p.cash_amount), 0)
+  const payCard = payments.reduce((s, p) => s + Number(p.card_amount), 0)
   const totalWallet = payments.reduce((s, p) => s + Number(p.wallet_amount), 0)
-  const totalRevenue = payments.reduce((s, p) => s + Number(p.total_amount), 0)
-  const walletLoaded = walletTxs.filter((t) => t.type === "load").reduce((s, t) => s + Number(t.amount), 0)
+  const payRevenue = payments.reduce((s, p) => s + Number(p.total_amount), 0)
+
+  // Retail tender — folded into revenue (retail IS sales) so the dashboard
+  // ciro finally reflects socks / snacks etc.
+  const retailCash = retail.cash
+  const retailCard = retail.card
+  const retailRevenue = retail.total
+
+  const totalCash = payCash + retailCash
+  const totalCard = payCard + retailCard
+  const totalRevenue = payRevenue + retailRevenue
+
+  // Wallet top-ups split by tender (prepaid — NOT revenue, but they physically
+  // hit the POS terminal / drawer, so they belong in the reconciliation figure).
+  const loads = walletTxs.filter((t) => t.type === "load")
+  const walletLoaded     = loads.reduce((s, t) => s + Number(t.amount), 0)
+  const walletCardLoaded = loads.filter((t) => t.method === "card").reduce((s, t) => s + Number(t.amount), 0)
+  const walletCashLoaded = loads.filter((t) => t.method === "cash").reduce((s, t) => s + Number(t.amount), 0)
+
   const totalRefunded = refunds.reduce((s, r) => s + Number(r.refund_amount), 0)
 
   return {
@@ -155,6 +194,40 @@ export async function getDashboardMetrics(scope?: BranchScope): Promise<Dashboar
     walletLoaded,
     totalRefunded,
     netRevenue: totalRevenue - totalRefunded,
+    retailCash,
+    retailCard,
+    retailRevenue,
+    walletCardLoaded,
+    walletCashLoaded,
+    cardTendered: totalCard + walletCardLoaded,
+    cashTendered: totalCash + walletCashLoaded,
+  }
+}
+
+// ─── Retail tender helper ─────────────────────────────────────────────────────
+//
+// Sums today's non-voided retail sales by tender. Kept branch-agnostic because
+// retail_sales.branch_id is not yet populated (single-branch production). If a
+// branch column is later backfilled this can take the same `s(...)` scope.
+async function fetchTodayRetail(
+  supabase: ReturnType<typeof createClient>,
+  today: Date,
+): Promise<{ cash: number; card: number; total: number }> {
+  try {
+    const { data, error } = await supabase
+      .from("retail_sales")
+      .select("cash_amount, card_amount, total_amount, voided")
+      .gte("sold_at", today.toISOString())
+    if (error) throw error
+    const live = (data ?? []).filter((r) => !(r as { voided?: boolean }).voided)
+    return {
+      cash:  live.reduce((s, r) => s + Number((r as { cash_amount?: number }).cash_amount ?? 0), 0),
+      card:  live.reduce((s, r) => s + Number((r as { card_amount?: number }).card_amount ?? 0), 0),
+      total: live.reduce((s, r) => s + Number((r as { total_amount?: number }).total_amount ?? 0), 0),
+    }
+  } catch {
+    // retail_sales missing / RLS denied → contribute zero, never break the KPI.
+    return { cash: 0, card: 0, total: 0 }
   }
 }
 
@@ -230,14 +303,19 @@ export async function getPaymentSplit(scope?: BranchScope): Promise<PaymentSplit
   const supabase = createClient()
   const today = startOfToday()
 
-  const { data } = await s(
-    supabase.from("payments").select("cash_amount, card_amount, wallet_amount, branch_id"),
-    scope,
-  ).gte("created_at", today.toISOString())
+  const [{ data }, retail] = await Promise.all([
+    s(
+      supabase.from("payments").select("cash_amount, card_amount, wallet_amount, branch_id"),
+      scope,
+    ).gte("created_at", today.toISOString()),
+    // Fold retail tender in so the split matches the ciro KPI (which now
+    // includes retail). Retail has no wallet portion.
+    fetchTodayRetail(supabase, today),
+  ])
 
   const rows = data ?? []
-  const cash = rows.reduce((s, p) => s + Number(p.cash_amount), 0)
-  const card = rows.reduce((s, p) => s + Number(p.card_amount), 0)
+  const cash = rows.reduce((s, p) => s + Number(p.cash_amount), 0) + retail.cash
+  const card = rows.reduce((s, p) => s + Number(p.card_amount), 0) + retail.card
   const wallet = rows.reduce((s, p) => s + Number(p.wallet_amount), 0)
   const total = cash + card + wallet || 1
 

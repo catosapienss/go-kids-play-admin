@@ -14,6 +14,8 @@ export interface DbChild {
   full_name: string
   age: number
   allergies: string | null
+  /** Optional — exists once migration 019 is applied. */
+  notes?: string | null
   created_at: string
 }
 
@@ -34,6 +36,8 @@ export interface DbSession {
   status: "active" | "completed" | "paused"
   created_by: string | null
   created_at: string
+  /** Sequential per-day label number assigned by the DB trigger (migration 020). */
+  daily_seq?: number | null
 }
 
 export interface DbPayment {
@@ -62,6 +66,7 @@ export interface CreateChildInput {
   full_name: string
   age: number
   allergies?: string
+  notes?: string
 }
 
 export interface CreateSessionInput {
@@ -74,6 +79,8 @@ export interface CreateSessionInput {
   staff_name: string
   duration_minutes: number
   created_by?: string
+  /** Note snapshot stored on the session row (sessions.child_notes). */
+  child_notes?: string
 }
 
 export interface CreatePaymentInput {

@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { cn } from "@/lib/utils"
+import { cn, formatNumberTR } from "@/lib/utils"
 import type { StaffMember } from "@/types/personel"
 
 const ROLE_META = {
@@ -63,7 +63,7 @@ export function StaffCard({ staff }: { staff: StaffMember }) {
           {[
             { label: "İşlem", value: staff.todayTxCount, color: "text-slate-900 dark:text-white" },
             { label: "İptal", value: staff.todayCancelCount, color: staff.todayCancelCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white" },
-            { label: "₺", value: (staff.todayRevenue / 1000).toFixed(1) + "k", color: "text-emerald-600 dark:text-emerald-400" },
+            { label: "₺", value: formatNumberTR(Math.round(staff.todayRevenue)), color: "text-emerald-600 dark:text-emerald-400" },
           ].map((s) => (
             <div key={s.label} className="bg-slate-50 dark:bg-slate-800 rounded-xl p-2.5 text-center">
               <p className={cn("text-base font-bold tabular-nums leading-tight", s.color)}>{s.value}</p>

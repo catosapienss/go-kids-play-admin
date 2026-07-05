@@ -22,7 +22,6 @@ import { CustomerProfileSheet } from "@/components/crm/customer-profile-sheet"
 //   • Top 10 spenders (clickable → CustomerProfileSheet)
 
 function fmtTRY(n: number): string {
-  if (Math.abs(n) >= 1000) return `₺${(n / 1000).toFixed(1).replace(".0", "")}k`
   return `₺${Math.round(n).toLocaleString("tr-TR")}`
 }
 

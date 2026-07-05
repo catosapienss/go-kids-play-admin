@@ -339,6 +339,12 @@ export function getCustomerById(id: string): Customer | undefined {
 }
 
 export function daysSinceLastVisit(lastVisit: string): number {
-  const diff = Date.now() - new Date(lastVisit).getTime()
-  return Math.floor(diff / (1000 * 60 * 60 * 24))
+  // Calendar-day based (floors both ends to local midnight) so "Bugün" flips to
+  // "Dün" at 00:00, not after a rolling 24 hours. See calendarDaysAgo.
+  const then = new Date(lastVisit)
+  if (isNaN(then.getTime())) return 0
+  const now = new Date()
+  const a = new Date(then.getFullYear(), then.getMonth(), then.getDate()).getTime()
+  const b = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  return Math.max(0, Math.round((b - a) / 86_400_000))
 }

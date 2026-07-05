@@ -15,6 +15,10 @@ export interface DbSessionRow {
   status: "active" | "paused" | "completed"
   created_by: string | null
   created_at: string
+  /** Staff note snapshot — exists once migration 019 is applied. */
+  child_notes?: string | null
+  /** Sequential per-day label number — exists once migration 020 is applied. */
+  daily_seq?: number | null
 }
 
 // Union type for event type safety

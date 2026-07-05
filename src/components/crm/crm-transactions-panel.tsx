@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   Search, Calendar, Loader2, Baby, User, Phone, Clock, Package,
-  Banknote, CreditCard, Wallet, Download,
+  Banknote, CreditCard, Wallet, Download, StickyNote,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
@@ -30,12 +30,19 @@ interface SessionRow {
 
 interface PaymentTotals {
   total:  number
+  cash:   number
+  card:   number
+  wallet: number
   method: "cash" | "card" | "wallet" | "mixed" | "free"
 }
 
 interface Row extends SessionRow {
   paymentTotal:  number
+  paymentCash:   number
+  paymentCard:   number
+  paymentWallet: number
   paymentMethod: PaymentTotals["method"]
+  childNotes:    string | null
 }
 
 const METHOD_META: Record<PaymentTotals["method"], { label: string; cls: string; icon?: typeof Banknote }> = {
@@ -112,10 +119,22 @@ export function CrmTransactionsPanel() {
         if (sList.length === 0) { if (!cancelled) setRows([]); return }
 
         const ids = sList.map((s) => s.id)
-        const { data: pays } = await supabase
-          .from("payments")
-          .select("session_id, cash_amount, card_amount, wallet_amount, total_amount")
-          .in("session_id", ids)
+        const [{ data: pays }, notesRes] = await Promise.all([
+          supabase
+            .from("payments")
+            .select("session_id, cash_amount, card_amount, wallet_amount, total_amount")
+            .in("session_id", ids),
+          // Tolerant fetch — child_notes only exists after migration 019.
+          // An error here (missing column) must NOT break the ledger.
+          supabase.from("sessions").select("id, child_notes").in("id", ids),
+        ])
+
+        const noteMap = new Map<string, string>()
+        if (!notesRes.error) {
+          for (const n of (notesRes.data ?? []) as Array<{ id: string; child_notes: string | null }>) {
+            if (n.child_notes?.trim()) noteMap.set(n.id, n.child_notes.trim())
+          }
+        }
 
         const payMap = new Map<string, PaymentTotals>()
         for (const p of (pays ?? []) as Array<{
@@ -128,12 +147,14 @@ export function CrmTransactionsPanel() {
           const total  = Number(p.total_amount  ?? cash + card + wallet) || 0
           const prev   = payMap.get(p.session_id)
           if (prev) {
+            const c = prev.cash + cash, k = prev.card + card, w = prev.wallet + wallet
             payMap.set(p.session_id, {
               total:  prev.total + total,
-              method: prev.method === "mixed" ? "mixed" : (pickMethod(cash, card, wallet) === prev.method ? prev.method : "mixed"),
+              cash: c, card: k, wallet: w,
+              method: pickMethod(c, k, w),
             })
           } else {
-            payMap.set(p.session_id, { total, method: pickMethod(cash, card, wallet) })
+            payMap.set(p.session_id, { total, cash, card, wallet, method: pickMethod(cash, card, wallet) })
           }
         }
 
@@ -143,8 +164,12 @@ export function CrmTransactionsPanel() {
             const t = payMap.get(s.id)
             return {
               ...s,
-              paymentTotal:  t?.total ?? 0,
+              paymentTotal:  t?.total  ?? 0,
+              paymentCash:   t?.cash   ?? 0,
+              paymentCard:   t?.card   ?? 0,
+              paymentWallet: t?.wallet ?? 0,
               paymentMethod: t?.method ?? "free",
+              childNotes:    noteMap.get(s.id) ?? null,
             }
           }),
         )
@@ -164,7 +189,7 @@ export function CrmTransactionsPanel() {
 
   function exportCsv() {
     if (!rows || rows.length === 0) return
-    const header = ["Çocuk","Veli","Telefon","Paket","Tarih","Giriş","Çıkış","Süre (dk)","Ücret","Ödeme"]
+    const header = ["Çocuk","Veli","Telefon","Paket","Tarih","Giriş","Çıkış","Süre (dk)","Ücret","Ödeme","Not"]
     const lines = rows.map((r) => [
       r.child_name ?? "",
       r.parent_name ?? "",
@@ -175,7 +200,15 @@ export function CrmTransactionsPanel() {
       fmtHM(r.ended_at ?? r.end_time),
       String(r.duration_minutes ?? 0),
       String(r.paymentTotal),
-      METHOD_META[r.paymentMethod].label,
+      // Karma → explicit tender breakdown instead of just "Karma".
+      r.paymentMethod === "mixed"
+        ? [
+            r.paymentCash   > 0 ? `Nakit ${r.paymentCash}`   : null,
+            r.paymentCard   > 0 ? `Kart ${r.paymentCard}`    : null,
+            r.paymentWallet > 0 ? `Cüzdan ${r.paymentWallet}` : null,
+          ].filter(Boolean).join(" + ")
+        : METHOD_META[r.paymentMethod].label,
+      r.childNotes ?? "",
     ].map((v) => `"${String(v).replaceAll('"', '""')}"`).join(","))
     const csv = [header.join(","), ...lines].join("\n")
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" })
@@ -270,8 +303,18 @@ export function CrmTransactionsPanel() {
               const MIcon = meta.icon
               return (
                 <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="px-3 py-2 font-semibold text-slate-900 dark:text-white truncate max-w-[140px]">
-                    {r.child_name || "—"}
+                  <td className="px-3 py-2 max-w-[160px]">
+                    <span className="block font-semibold text-slate-900 dark:text-white truncate">
+                      {r.child_name || "—"}
+                    </span>
+                    {r.childNotes && (
+                      <span className="flex items-start gap-1 mt-0.5" title={r.childNotes}>
+                        <StickyNote className="w-2.5 h-2.5 text-amber-500 flex-shrink-0 mt-[1px]" />
+                        <span className="text-[10.5px] font-medium text-amber-700 dark:text-amber-400 truncate">
+                          {r.childNotes}
+                        </span>
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300 truncate max-w-[140px]">
                     {r.parent_name || "—"}
@@ -300,13 +343,34 @@ export function CrmTransactionsPanel() {
                     {r.paymentTotal > 0 ? fmtMoney(r.paymentTotal) : "—"}
                   </td>
                   <td className="px-3 py-2 pr-4 text-right">
-                    <span className={cn(
-                      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold",
-                      meta.cls,
-                    )}>
-                      {MIcon && <MIcon className="w-3 h-3" />}
-                      {meta.label}
-                    </span>
+                    {r.paymentMethod === "mixed" ? (
+                      // Karma — show explicit breakdown per operator request
+                      <span className="inline-flex items-center gap-1 flex-wrap justify-end">
+                        {r.paymentCash > 0 && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                            <Banknote className="w-3 h-3" />N {fmtMoney(r.paymentCash)}
+                          </span>
+                        )}
+                        {r.paymentCard > 0 && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300">
+                            <CreditCard className="w-3 h-3" />K {fmtMoney(r.paymentCard)}
+                          </span>
+                        )}
+                        {r.paymentWallet > 0 && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300">
+                            <Wallet className="w-3 h-3" />C {fmtMoney(r.paymentWallet)}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className={cn(
+                        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold",
+                        meta.cls,
+                      )}>
+                        {MIcon && <MIcon className="w-3 h-3" />}
+                        {meta.label}
+                      </span>
+                    )}
                   </td>
                 </tr>
               )

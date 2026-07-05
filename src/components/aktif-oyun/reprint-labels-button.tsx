@@ -51,7 +51,12 @@ function buildJobs(session: ActiveSession, companyPhone: string): { child: Label
     : `${session.totalMinutes} Dakika`
 
   const shared: ChildLabelData = {
-    queueNumber:   getOrAssignSessionQueueNumber(session.id),
+    // Server-assigned atomic daily number is the source of truth. Fall back to
+    // the legacy per-session client counter only for sessions that predate
+    // migration 020 (dailySeq null) so reprint never breaks.
+    queueNumber:   session.dailySeq != null
+      ? String(session.dailySeq)
+      : getOrAssignSessionQueueNumber(session.id),
     childName:     (session.childName || "—").trim(),
     startDate:     `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`,
     startTime:     session.entryTime,

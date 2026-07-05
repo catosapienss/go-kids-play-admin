@@ -29,6 +29,7 @@ function toCustomer(p: ParentWithChildren): Customer {
       id: c.id,
       name: c.full_name,
       age: c.age,
+      notes: c.notes ?? null,
     })),
   }
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import {
   Phone, Wallet, Baby, Calendar, X, RefreshCw, AlertTriangle,
-  TrendingUp, History, CreditCard, Banknote,
+  TrendingUp, History, CreditCard, Banknote, StickyNote,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -255,13 +255,21 @@ export function CustomerProfileSheet({ parentId, open, onClose }: Props) {
                   <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-2">Çocuklar</p>
                   <ul className="space-y-1.5">
                     {profile.children.map((c) => (
-                      <li key={c.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+                      <li key={c.id} className="flex items-start gap-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
                         <div className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-300 flex items-center justify-center flex-shrink-0">
                           <Baby className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{c.name}</p>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                            {c.name || c.full_name || "—"}
+                          </p>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400">{c.age} yaş</p>
+                          {c.notes?.trim() && (
+                            <p className="mt-1 flex items-start gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 leading-snug">
+                              <StickyNote className="w-3 h-3 flex-shrink-0 mt-[1px]" />
+                              {c.notes.trim()}
+                            </p>
+                          )}
                         </div>
                       </li>
                     ))}

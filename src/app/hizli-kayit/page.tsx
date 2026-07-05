@@ -6,6 +6,7 @@ import { CustomerPanel } from "@/components/hizli-kayit/customer-panel"
 import { FastChildrenInput } from "@/components/hizli-kayit/fast-children-input"
 import { SessionDurationPicker } from "@/components/hizli-kayit/session-duration-picker"
 import { InlineRetailPanel } from "@/components/hizli-kayit/inline-retail-panel"
+import { DiscountSection } from "@/components/hizli-kayit/discount-section"
 import { DiscountActionButton } from "@/components/hizli-kayit/discount-action-button"
 import { PaymentPanel } from "@/components/hizli-kayit/payment-panel"
 import { RetailPaymentPanel, summariseRetailPayments } from "@/components/hizli-kayit/retail-payment-panel"
@@ -14,7 +15,7 @@ import { SuccessModal } from "@/components/hizli-kayit/success-modal"
 import { EntryCodeLookup } from "@/components/hizli-kayit/entry-code-lookup"
 import type { LookupResult } from "@/lib/services/entry-code.service"
 import { ShiftClockCard } from "@/components/personel/shift-clock-card"
-import { createChild, createSession, createPayment, deductWallet } from "@/lib/services/pos.service"
+import { createChild, createSession, createPayment, deductWallet, updateChildNotes } from "@/lib/services/pos.service"
 import { checkoutSale } from "@/lib/services/retail"
 import {
   recordDiscount, computeDiscountAmount, maxDiscountForRole,
@@ -85,6 +86,10 @@ export default function HizliKayitPage() {
   const [retailPayments, setRetailPayments] = useState<PaymentEntry[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  // Server-assigned daily label numbers (one per child, in kidsList order),
+  // captured from each created session so the printed sticker matches the
+  // atomic per-day sequence. See migration 020.
+  const [labelNumbers, setLabelNumbers] = useState<string[]>([])
   // Section 3 — single duration applied to ALL children. Section 4 — retail.
   const [globalDuration,  setGlobalDuration]  = useState<DurationOption | null>(null)
   const [globalUnitPrice, setGlobalUnitPrice] = useState<number>(0)
@@ -127,6 +132,7 @@ export default function HizliKayitPage() {
         age: sc.age,
         duration: null,
         price: 0,
+        note: sc.notes?.trim() ? sc.notes.trim() : undefined,
       }))
       setChildren(prefilled)
       setSelectedChildId(prefilled[0]?.id ?? null)
@@ -138,6 +144,14 @@ export default function HizliKayitPage() {
     setChildren([])
     setSelectedChildId(null)
     setPayments([])
+    setRetailPayments([])
+    setRetailCart([])
+    // CRITICAL: the discount belongs to the transaction, not the terminal.
+    // Without this reset a discount picked for customer A silently carried
+    // over to customer B — staff perceived it as an "automatic" discount.
+    setDiscountType("fixed")
+    setDiscountValue(0)
+    setDiscountReason(null)
   }, [])
 
   // Entry-code lookup → resolve to Customer shape and feed the existing
@@ -227,6 +241,10 @@ export default function HizliKayitPage() {
       // Capture the first created session so the discount row can reference it.
       let firstSessionId: string | null = null
 
+      // Collect the server-assigned daily label number for each child (in
+      // order) so the success modal prints the atomic per-day sequence.
+      const assignedNumbers: string[] = []
+
       // Split payments proportionally across children so each session's payment
       // record reflects only that child's share. Without this, a 2-child group
       // would double-count revenue in day-end reconciliation.
@@ -241,6 +259,8 @@ export default function HizliKayitPage() {
         const child = children[i]
         const split = perChildPayments[i]
 
+        const childNote = child.note?.trim() || undefined
+
         // Persist new children; existing (UUID) children already have DB records.
         let childId = child.id
         if (!isUUID(child.id)) {
@@ -250,6 +270,7 @@ export default function HizliKayitPage() {
               full_name: child.name,
               age: typeof child.age === "number" ? child.age : parseInt(child.age as string) || 0,
               allergies: (selectedCustomer as { allergies?: string }).allergies || undefined,
+              notes: childNote,
             })
           } catch (childErr: unknown) {
             // eslint-disable-next-line no-console
@@ -258,6 +279,17 @@ export default function HizliKayitPage() {
             })
             const em = childErr instanceof Error ? childErr.message : String(childErr)
             throw new Error(`Çocuk kaydı başarısız (${child.name}): ${em}`)
+          }
+        } else {
+          // Existing child — sync the note to the master record when the
+          // operator changed it. Fire-and-forget; a note failure must never
+          // block the registration.
+          const savedNote = selectedCustomer.children.find((sc) => sc.id === child.id)?.notes?.trim() ?? ""
+          if ((childNote ?? "") !== savedNote) {
+            updateChildNotes(child.id, childNote ?? null).catch((e) => {
+              // eslint-disable-next-line no-console
+              console.warn("[hizli-kayit] child note sync failed", e)
+            })
           }
         }
 
@@ -274,6 +306,7 @@ export default function HizliKayitPage() {
             staff_name: user?.fullName ?? "Personel",
             duration_minutes: mins,
             created_by: user?.id,
+            child_notes: childNote,
           })
         } catch (sessErr: unknown) {
           // eslint-disable-next-line no-console
@@ -281,6 +314,12 @@ export default function HizliKayitPage() {
           const em = sessErr instanceof Error ? sessErr.message : String(sessErr)
           throw new Error(`Oturum oluşturulamadı (${child.name}): ${em}`)
         }
+
+        // Server-assigned atomic daily number (migration 020). Fall back to the
+        // child's index only if the column isn't present yet (pre-migration).
+        assignedNumbers.push(
+          session.daily_seq != null ? String(session.daily_seq) : "",
+        )
 
         try {
           await createPayment({
@@ -348,6 +387,7 @@ export default function HizliKayitPage() {
       // makes "registration → appears in Active Sessions" deterministic.
       void refreshSessions()
 
+      setLabelNumbers(assignedNumbers)
       setShowSuccess(true)
       toast.success("Oyun başlatıldı!")
     } catch (err: unknown) {
@@ -370,6 +410,7 @@ export default function HizliKayitPage() {
     setDiscountType("fixed")
     setDiscountValue(0)
     setDiscountReason(null)
+    setLabelNumbers([])
   }, [])
 
   /** Cancel button — audit-logged clear so managers can trace who aborted
@@ -417,7 +458,7 @@ export default function HizliKayitPage() {
             />
           </div>
 
-          {/* MIDDLE: Children + Duration + Retail */}
+          {/* MIDDLE: Children + Duration */}
           <div className="border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 p-4 lg:p-5 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/30 space-y-3">
             <FastChildrenInput
               kidsList={children}
@@ -448,11 +489,12 @@ export default function HizliKayitPage() {
               }
               onChange={handlePickGlobalDuration}
             />
-            <InlineRetailPanel cart={retailCart} onChange={setRetailCart} />
           </div>
 
-          {/* RIGHT: Payment — GAME panel (top) + optional RETAIL panel (below) */}
-          <div className="p-4 lg:p-5 overflow-y-auto space-y-3">
+          {/* RIGHT: fixed payment sidebar — always visible, own scroll.
+              Order per operations request: Ödeme Özeti/Türü/Toplam → İndirim
+              → Perakende ürünleri (çorap vb.) → Perakende ödemesi. */}
+          <div className="p-4 lg:p-5 overflow-y-auto space-y-3 bg-white dark:bg-slate-900/40">
             <PaymentPanel
               total={gameNet}
               gameTotal={gameTotal}
@@ -464,6 +506,19 @@ export default function HizliKayitPage() {
               onRemovePayment={handleRemovePayment}
               onUpdatePayment={handleUpdatePayment}
             />
+            <DiscountSection
+              baseAmount={grossTotal}
+              amount={discount}
+              type={discountType}
+              value={discountValue}
+              reason={discountReason}
+              onChange={({ type, value, reason }) => {
+                setDiscountType(type)
+                setDiscountValue(value)
+                setDiscountReason(reason)
+              }}
+            />
+            <InlineRetailPanel cart={retailCart} onChange={setRetailCart} />
             <RetailPaymentPanel
               total={retailTotal}
               payments={retailPayments}
@@ -505,6 +560,7 @@ export default function HizliKayitPage() {
           customer={selectedCustomer}
           kidsList={children}
           total={total}
+          labelNumbers={labelNumbers}
           onClose={handleSuccessClose}
         />
       )}

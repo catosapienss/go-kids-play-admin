@@ -1,12 +1,14 @@
 "use client"
 
-import { Crown, Pause, Play, LogOut, Plus, ChevronDown, XCircle, Clock } from "lucide-react"
+import { Crown, Pause, Play, LogOut, Plus, ChevronDown, XCircle, Clock, StickyNote, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getStatus, formatTime, elapsedMinutes } from "@/types/aktif-oyun"
 import type { ActiveSession } from "@/types/aktif-oyun"
 import { useState } from "react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ReprintLabelsButton } from "./reprint-labels-button"
+import { updateSessionChildNotes } from "@/lib/services/session.service"
+import { toast } from "sonner"
 
 interface ActiveChildCardProps {
   session: ActiveSession
@@ -29,31 +31,33 @@ const STATUS_CONFIG = {
     label: "Aktif",
   },
   expiring: {
-    border: "border-red-300 dark:border-red-500/40",
-    timerColor: "text-red-600 dark:text-red-400",
-    timerBg: "bg-red-50 dark:bg-red-500/10",
-    bar: "bg-red-500",
-    dot: "bg-red-500 animate-ping",
-    badge: "bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-400",
-    label: "Bitiyor",
-  },
-  paused: {
-    border: "border-amber-200 dark:border-amber-500/25",
-    timerColor: "text-amber-600 dark:text-amber-400",
+    // Last 10 minutes → yellow (early warning, not danger yet).
+    border: "border-amber-300 dark:border-amber-500/40",
+    timerColor: "text-amber-700 dark:text-amber-400",
     timerBg: "bg-amber-50 dark:bg-amber-500/10",
     bar: "bg-amber-500",
-    dot: "bg-amber-500",
+    dot: "bg-amber-500 animate-pulse",
     badge: "bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    label: "Son 10 dk",
+  },
+  paused: {
+    border: "border-slate-300 dark:border-slate-600",
+    timerColor: "text-slate-600 dark:text-slate-400",
+    timerBg: "bg-slate-100 dark:bg-slate-800",
+    bar: "bg-slate-500",
+    dot: "bg-slate-500",
+    badge: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300",
     label: "Duraklı",
   },
   expired: {
-    border: "border-slate-200 dark:border-slate-700",
-    timerColor: "text-slate-400 dark:text-slate-500",
-    timerBg: "bg-slate-100 dark:bg-slate-800",
-    bar: "bg-slate-300",
-    dot: "bg-slate-400",
-    badge: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
-    label: "Bitti",
+    // Time's up → strong red so staff can spot it instantly across the floor.
+    border: "border-rose-400 dark:border-rose-500/60 ring-2 ring-rose-500/40",
+    timerColor: "text-white",
+    timerBg: "bg-rose-600 dark:bg-rose-600",
+    bar: "bg-rose-600",
+    dot: "bg-rose-600 animate-ping",
+    badge: "bg-rose-600 text-white",
+    label: "SÜRESİ BİTTİ",
   },
 }
 
@@ -84,6 +88,27 @@ export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume
   const avatarColor = AVATAR_COLORS[session.childName.charCodeAt(0) % AVATAR_COLORS.length]
   const [expanded, setExpanded] = useState(false)
 
+  // Local note state — seeded from the session, kept after save so the card
+  // reflects the change immediately even if the realtime UPDATE lags.
+  const [savedNote, setSavedNote]   = useState<string | null>(session.childNotes)
+  const [noteDraft, setNoteDraft]   = useState<string>(session.childNotes ?? "")
+  const [noteSaving, setNoteSaving] = useState(false)
+  const displayNote = savedNote?.trim() ? savedNote.trim() : null
+
+  async function saveNote() {
+    if (noteSaving) return
+    setNoteSaving(true)
+    try {
+      await updateSessionChildNotes(session.id, session.childId, noteDraft)
+      setSavedNote(noteDraft.trim() || null)
+      toast.success("Not kaydedildi")
+    } catch (e) {
+      toast.error("Not kaydedilemedi: " + (e instanceof Error ? e.message : ""))
+    } finally {
+      setNoteSaving(false)
+    }
+  }
+
   const isUnlimited = session.packageType === "Serbest"
   const canPause = isUnlimited
   const isExpired = status === "expired"
@@ -93,10 +118,13 @@ export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume
     <TooltipProvider delayDuration={300}>
       <div
         className={cn(
-          "bg-white dark:bg-slate-900 rounded-2xl border-2 shadow-sm transition-all duration-200 overflow-hidden",
+          "rounded-2xl border-2 shadow-sm transition-all duration-200 overflow-hidden",
+          // Expired sessions get a full red tint so staff spot them instantly.
+          isExpired
+            ? "bg-rose-50 dark:bg-rose-500/[0.08] shadow-rose-500/20 shadow-lg"
+            : "bg-white dark:bg-slate-900",
           cfg.border,
-          isExpiring && "ring-2 ring-red-500/20 animate-pulse-slow",
-          isExpired && "opacity-70",
+          isExpiring && "ring-2 ring-amber-500/25 animate-pulse-slow",
         )}
       >
         {/* ── Top row: avatar + name + badges ────────────────────────────── */}
@@ -118,8 +146,16 @@ export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume
 
           {/* Name + parent */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate leading-tight">
-              {session.childName}
+            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate leading-tight flex items-center gap-1.5">
+              {session.dailySeq != null && (
+                <span
+                  className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-md bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 text-[11px] font-black tabular-nums flex-shrink-0"
+                  title="Günlük etiket sırası"
+                >
+                  {session.dailySeq}
+                </span>
+              )}
+              <span className="truncate">{session.childName}</span>
             </p>
             <p className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">
               {session.parentName}
@@ -137,6 +173,16 @@ export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume
             </span>
           </div>
         </div>
+
+        {/* ── Staff note — safety-critical, always visible when present ──── */}
+        {displayNote && (
+          <div className="mx-3 mb-2 flex items-start gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200/70 dark:border-amber-500/25">
+            <StickyNote className="w-3 h-3 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 leading-snug">
+              {displayNote}
+            </p>
+          </div>
+        )}
 
         {/* ── Timer ───────────────────────────────────────────────────────── */}
         <div className={cn("mx-3 mb-2 rounded-xl px-3 py-2", cfg.timerBg)}>
@@ -251,6 +297,32 @@ export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume
               <span className="text-slate-400">Giriş:</span>
               <span className="text-slate-700 dark:text-slate-300 font-medium">{session.entryTime} · {elapsed} dk önce</span>
             </div>
+
+            {/* Note editor — add/update after registration */}
+            <div>
+              <label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                <StickyNote className="w-3 h-3 text-amber-500" />
+                Not
+              </label>
+              <textarea
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                rows={2}
+                placeholder="Örn: Annesi arandığında haber ver"
+                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-amber-500 resize-none"
+              />
+              {noteDraft.trim() !== (savedNote ?? "") && (
+                <button
+                  onClick={saveNote}
+                  disabled={noteSaving}
+                  className="mt-1 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-all active:scale-95"
+                >
+                  {noteSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <StickyNote className="w-3 h-3" />}
+                  Notu Kaydet
+                </button>
+              )}
+            </div>
+
             <button
               onClick={() => onCancel(session.id)}
               className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/20 rounded-xl text-xs font-semibold transition-all active:scale-95"

@@ -126,7 +126,8 @@ export async function listCustomers(
  *   • total         — all rows in `parents`
  *   • newThisMonth  — registered_at ≥ TR-month start
  *   • returning     — visit_count ≥ 2
- *   • today         — last_session_at ≥ TR-day start
+ *   • today         — CHILDREN who entered today (sessions started today),
+ *                     NOT distinct parents. One family of 3 kids counts as 3.
  *
  * Each runs as a head-only count query so we never pull row payloads.
  */
@@ -141,8 +142,11 @@ export async function getCrmStats(): Promise<CrmStats> {
       .gte("created_at", monthStart),
     supabase.from("customer_summary").select("id", { count: "exact", head: true })
       .gte("visit_count", 2),
-    supabase.from("customer_summary").select("id", { count: "exact", head: true })
-      .gte("last_session_at", dayStart),
+    // Visitor count = children entries today. Each session row is one child
+    // entering the playground, so counting sessions started today gives the
+    // child-level figure the floor staff expect (calendar-date scoped).
+    supabase.from("sessions").select("id", { count: "exact", head: true })
+      .gte("created_at", dayStart),
   ])
 
   return {

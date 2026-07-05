@@ -15,6 +15,10 @@ interface Props {
   customer:      Customer
   kidsList:      ChildEntry[]
   sessionNumber: string
+  /** Server-assigned atomic daily label numbers, one per child (kidsList order).
+   *  When present these are printed verbatim — the single source of truth. The
+   *  client-side counter is only a fallback for pre-migration sessions. */
+  labelNumbers?: string[]
 }
 
 function durationLabel(d: ChildEntry["duration"]): string {
@@ -77,20 +81,23 @@ function buildAllJobs(kids: ChildEntry[], companyPhone: string, numbers: string[
   }
 }
 
-export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _sessionNumber }: Props) {
+export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _sessionNumber, labelNumbers }: Props) {
   const printer = useSettingsSection("printer")
   const { settings } = useSettings()
   const companyPhone = settings.general.businessPhone || "+90 532 542 5205"
   const [busy, setBusy] = useState<"child" | "parent" | "both" | null>(null)
   const autoFiredRef = useRef(false)
 
-  // Assign one queue number per child, ONCE for the lifetime of this success
-  // modal. Multiple reprints (e.g. operator hits Çocuk then Veli) share the
-  // same number so the parent/child stickers stay paired.
+  // Prefer the server-assigned atomic daily numbers (migration 020). Only fall
+  // back to the legacy client counter for a child whose number is missing
+  // (e.g. the column isn't deployed yet) so printing never fails.
   const queueNumbers = useMemo(
-    () => kidsList.map(() => nextQueueNumber()),
+    () => kidsList.map((_, i) => {
+      const server = labelNumbers?.[i]?.trim()
+      return server && server.length > 0 ? server : nextQueueNumber()
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [kidsList.length],
+    [kidsList.length, labelNumbers],
   )
   const { childJobs, parentJobs } = useMemo(
     () => buildAllJobs(kidsList, companyPhone, queueNumbers),

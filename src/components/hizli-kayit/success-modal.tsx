@@ -15,6 +15,8 @@ interface SuccessModalProps {
   customer: Customer
   kidsList: ChildEntry[]
   total: number
+  /** Server-assigned daily label numbers, one per child in kidsList order. */
+  labelNumbers?: string[]
   onClose: () => void
 }
 
@@ -25,7 +27,7 @@ interface SuccessModalProps {
 // so the parent can return next time without ever giving their name again.
 // The rest of the modal (children list, total) is secondary context.
 
-export function SuccessModal({ customer, kidsList, total, onClose }: SuccessModalProps) {
+export function SuccessModal({ customer, kidsList, total, labelNumbers, onClose }: SuccessModalProps) {
   const [code, setCode] = useState<string>("")
   const [codeIsFallback, setCodeIsFallback] = useState(false)
 
@@ -112,25 +114,38 @@ export function SuccessModal({ customer, kidsList, total, onClose }: SuccessModa
 
         {/* Content */}
         <div className="p-5 space-y-3">
-          {/* Children — secondary */}
+          {/* Children — secondary. Each shows its atomic daily label number. */}
           <div className="space-y-1.5">
-            {kidsList.map((child) => (
-              <div key={child.id} className="flex items-center gap-3 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
-                <div className="w-7 h-7 rounded-lg bg-violet-100 dark:bg-violet-500/15 flex items-center justify-center flex-shrink-0">
-                  <Baby className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{child.name}</p>
-                  <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                    <Clock className="w-3 h-3" />
-                    <span>{child.duration ? DURATION_LABELS[child.duration] : "—"}</span>
+            {kidsList.map((child, i) => {
+              const labelNo = labelNumbers?.[i]?.trim()
+              return (
+                <div key={child.id} className="flex items-center gap-3 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
+                  {labelNo ? (
+                    <span
+                      className="w-7 h-7 rounded-lg bg-violet-600 text-white flex items-center justify-center flex-shrink-0 text-xs font-black tabular-nums"
+                      title="Günlük etiket sırası"
+                    >
+                      {labelNo}
+                    </span>
+                  ) : (
+                    <div className="w-7 h-7 rounded-lg bg-violet-100 dark:bg-violet-500/15 flex items-center justify-center flex-shrink-0">
+                      <Baby className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{child.name}</p>
+                    <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                      <Clock className="w-3 h-3" />
+                      <span>{child.duration ? DURATION_LABELS[child.duration] : "—"}</span>
+                      {labelNo && <span className="text-violet-500 font-semibold">· Sıra #{labelNo}</span>}
+                    </div>
                   </div>
+                  <span className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">
+                    ₺{child.price}
+                  </span>
                 </div>
-                <span className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">
-                  ₺{child.price}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Total */}
@@ -151,6 +166,7 @@ export function SuccessModal({ customer, kidsList, total, onClose }: SuccessModa
               customer={customer}
               kidsList={kidsList}
               sessionNumber={code || "—"}
+              labelNumbers={labelNumbers}
             />
           </div>
 

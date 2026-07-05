@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { Search, X, Phone, Baby, Loader2, Clock } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, calendarDaysAgo } from "@/lib/utils"
 import { useCustomerSearch } from "@/hooks/use-customer-search"
 import { type CustomerSummary } from "@/types/customer"
 import { LoyaltyBadge } from "./loyalty-badge"
@@ -36,9 +36,9 @@ function fmtPhone(p: string): string {
 
 function fmtRelative(iso: string | null): string {
   if (!iso) return "—"
-  const diff = Date.now() - new Date(iso).getTime()
-  const d = Math.floor(diff / 86_400_000)
-  if (d === 0) return "bugün"
+  const d = calendarDaysAgo(iso)
+  if (isNaN(d)) return "—"
+  if (d <= 0)  return "bugün"
   if (d === 1) return "dün"
   if (d < 7)   return `${d} gün`
   if (d < 30)  return `${Math.floor(d/7)} hafta`

@@ -149,13 +149,37 @@ export function DayEndPanel() {
       {/* Payment method breakdown */}
       <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
         <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-3">
-          Ödeme Yöntemi
+          Ödeme Yöntemi <span className="font-medium text-slate-400 normal-case">· oyun + uzatma + perakende</span>
         </p>
         <div className="grid grid-cols-3 gap-3">
           <MethodBlock icon={Banknote}   label="Nakit"  value={data.totalCash}   tone="emerald" />
           <MethodBlock icon={CreditCard} label="Kart"   value={data.totalCard}   tone="blue" />
           <MethodBlock icon={Wallet}     label="Cüzdan" value={data.totalWallet} tone="violet" />
         </div>
+        {data.retailRevenue > 0 && (
+          <p className="mt-2 text-[10px] text-slate-400 tabular-nums">
+            Perakende dahil · Nakit {fmtTRY(data.retailCash)} · Kart {fmtTRY(data.retailCard)}
+          </p>
+        )}
+      </div>
+
+      {/* POS terminal reconciliation ─ the figure to match against the
+          physical card machine. Includes card wallet top-ups (prepaid money
+          that swipes the terminal but is not counted as revenue above). */}
+      <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+        <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-3">
+          POS Terminal / Kasa Mutabakatı <span className="font-medium text-slate-400 normal-case">· fiziksel çekim</span>
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <MethodBlock icon={Banknote}   label="Nakit (Kasa)"     value={data.cashTendered} tone="emerald" />
+          <MethodBlock icon={CreditCard} label="Kart (POS)"       value={data.cardTendered} tone="blue" />
+        </div>
+        {(data.walletCardLoaded > 0 || data.walletCashLoaded > 0) && (
+          <p className="mt-2 text-[10px] text-slate-400 tabular-nums">
+            Cüzdan yükleme dahil · Kart {fmtTRY(data.walletCardLoaded)} · Nakit {fmtTRY(data.walletCashLoaded)}
+            <span className="ml-1 text-slate-400/80">(ön ödeme — ciroya dahil değil)</span>
+          </p>
+        )}
       </div>
 
       {/* Wallet activity + refunds + ops */}

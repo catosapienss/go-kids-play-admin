@@ -19,7 +19,6 @@ import { PanelSkeleton } from "@/components/dashboard/dashboard-skeletons"
 // prior-period delta (% change). One read per page (single RPC).
 
 function fmtTRY(n: number): string {
-  if (Math.abs(n) >= 1000) return `₺${(n / 1000).toFixed(1).replace(".0", "")}k`
   return `₺${Math.round(n).toLocaleString("tr-TR")}`
 }
 

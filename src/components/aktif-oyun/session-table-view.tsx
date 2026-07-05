@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { Plus, LogOut, Crown, Pause, Play, Banknote, CreditCard, Wallet, AlertCircle, Clock } from "lucide-react"
+import { Plus, LogOut, Crown, Pause, Play, Banknote, CreditCard, Wallet, AlertCircle, Clock, StickyNote } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ActiveSession } from "@/types/aktif-oyun"
 import { getStatus, formatTime } from "@/types/aktif-oyun"
@@ -42,8 +42,8 @@ const METHOD_META: Record<DerivedMethod, { label: string; icon?: typeof Banknote
 const STATUS_DOT: Record<ReturnType<typeof getStatus>, string> = {
   active:   "bg-emerald-500",
   paused:   "bg-amber-500",
-  expiring: "bg-red-500 animate-pulse",
-  expired:  "bg-slate-400",
+  expiring: "bg-amber-500 animate-pulse",
+  expired:  "bg-rose-600 animate-ping",
 }
 
 function fmt(n: number): string {
@@ -65,7 +65,7 @@ function exitTimeLabel(s: ActiveSession): string {
 function remainingLabel(s: ActiveSession): string {
   if (s.isPaused)                                            return "Duraklı"
   if (s.packageType === "Serbest" || s.totalMinutes === 0)   return "∞"
-  if (s.remainingSeconds <= 0)                               return "Doldu"
+  if (s.remainingSeconds <= 0)                               return "SÜRESİ BİTTİ"
   return formatTime(s.remainingSeconds)
 }
 
@@ -111,11 +111,20 @@ export function SessionTableView({ sessions, onExtend, onTimeExpired, onManualEx
                   key={s.id}
                   className={cn(
                     "border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors",
-                    status === "expiring" && "bg-red-50/40 dark:bg-red-500/5",
-                    status === "expired"  && "opacity-60",
+                    status === "expiring" && "bg-amber-50/60 dark:bg-amber-500/[0.05]",
+                    status === "expired"  && "bg-rose-100/70 dark:bg-rose-500/[0.12] font-semibold",
                   )}
                 >
-                  <td className="px-3 py-2.5 text-[11px] font-mono text-slate-400">{idx + 1}</td>
+                  <td className="px-3 py-2.5 text-[11px] font-mono">
+                    {/* Atomic daily entry number (migration 020) — the same
+                        number printed on the child's label. Falls back to the
+                        row position for pre-migration sessions. */}
+                    {s.dailySeq != null ? (
+                      <span className="font-bold text-violet-600 dark:text-violet-400">#{s.dailySeq}</span>
+                    ) : (
+                      <span className="text-slate-400">{idx + 1}</span>
+                    )}
+                  </td>
 
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
@@ -125,6 +134,14 @@ export function SessionTableView({ sessions, onExtend, onTimeExpired, onManualEx
                       </span>
                       {s.isVip && <Crown className="w-3 h-3 text-amber-500 flex-shrink-0" />}
                     </div>
+                    {s.childNotes && (
+                      <div className="flex items-start gap-1 mt-0.5 pl-3.5" title={s.childNotes}>
+                        <StickyNote className="w-2.5 h-2.5 text-amber-500 flex-shrink-0 mt-[1px]" />
+                        <span className="text-[10.5px] font-medium text-amber-700 dark:text-amber-400 truncate max-w-[170px]">
+                          {s.childNotes}
+                        </span>
+                      </div>
+                    )}
                   </td>
 
                   <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
@@ -143,8 +160,8 @@ export function SessionTableView({ sessions, onExtend, onTimeExpired, onManualEx
 
                   <td className="px-3 py-2.5 text-right font-bold">
                     <span className={cn(
-                      status === "expiring" ? "text-red-600 dark:text-red-400" :
-                      status === "expired"  ? "text-slate-400" :
+                      status === "expiring" ? "text-amber-600 dark:text-amber-400" :
+                      status === "expired"  ? "text-rose-700 dark:text-rose-300 font-black" :
                       s.isPaused            ? "text-amber-600 dark:text-amber-400" :
                                               "text-slate-900 dark:text-white",
                     )}>
@@ -163,13 +180,34 @@ export function SessionTableView({ sessions, onExtend, onTimeExpired, onManualEx
                   </td>
 
                   <td className="px-3 py-2.5">
-                    <span className={cn(
-                      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold",
-                      meta.cls,
-                    )}>
-                      {MIcon && <MIcon className="w-3 h-3" />}
-                      {meta.label}
-                    </span>
+                    {payments[s.id]?.method === "mixed" ? (
+                      // Karma → explicit tender breakdown (Nakit ₺X · Kart ₺Y)
+                      <span className="inline-flex items-center gap-1 flex-wrap">
+                        {payments[s.id].cash > 0 && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                            <Banknote className="w-3 h-3" />{fmt(payments[s.id].cash)}
+                          </span>
+                        )}
+                        {payments[s.id].card > 0 && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                            <CreditCard className="w-3 h-3" />{fmt(payments[s.id].card)}
+                          </span>
+                        )}
+                        {payments[s.id].wallet > 0 && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300">
+                            <Wallet className="w-3 h-3" />{fmt(payments[s.id].wallet)}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className={cn(
+                        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold",
+                        meta.cls,
+                      )}>
+                        {MIcon && <MIcon className="w-3 h-3" />}
+                        {meta.label}
+                      </span>
+                    )}
                   </td>
 
                   <td className="px-3 py-2 pr-3 text-right">

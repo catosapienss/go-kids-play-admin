@@ -71,9 +71,13 @@ export default function AktifOyunPage() {
     }
   })
 
+  // Expired first (staff must act), then expiring; within each group the
+  // newest registration sits on top (operator request: date-ordered lists).
   const sorted = [...filtered].sort((a, b) => {
-    const order = { expiring: 0, paused: 1, active: 2, expired: 3 }
-    return order[getStatus(a)] - order[getStatus(b)]
+    const order = { expired: 0, expiring: 1, active: 2, paused: 2 }
+    const byStatus = order[getStatus(a)] - order[getStatus(b)]
+    if (byStatus !== 0) return byStatus
+    return b.entryTimestamp - a.entryTimestamp
   })
 
   const extendSession = sessions.find((s) => s.id === extendTarget?.id) ?? null

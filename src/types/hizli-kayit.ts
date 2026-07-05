@@ -15,6 +15,8 @@ export interface SavedChild {
   id: string
   name: string
   age: number
+  /** Persistent operational note from children.notes ("Ateşe alerjisi var"). */
+  notes?: string | null
 }
 
 export interface ChildEntry {
@@ -23,6 +25,8 @@ export interface ChildEntry {
   age: number | ""
   duration: DurationOption | null
   price: number
+  /** Staff note — persisted to children.notes + snapshotted on the session. */
+  note?: string
 }
 
 export interface PaymentEntry {

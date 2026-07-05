@@ -102,6 +102,10 @@ export interface CustomerChild {
   name: string
   age: number
   created_at?: string
+  /** get_customer_profile returns to_jsonb(children) — production column is full_name. */
+  full_name?: string | null
+  /** Staff note (children.notes) — present once migration 019 is applied. */
+  notes?: string | null
 }
 
 // ─── Activity event ──────────────────────────────────────────────────────────

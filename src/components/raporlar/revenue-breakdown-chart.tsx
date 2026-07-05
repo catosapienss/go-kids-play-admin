@@ -20,7 +20,6 @@ import { EmptyState } from "@/components/system/empty-state"
 // back. Date-range-aware via the global DateRangeProvider.
 
 function fmtTRY(n: number): string {
-  if (Math.abs(n) >= 1000) return `₺${(n / 1000).toFixed(1).replace(".0", "")}k`
   return `₺${Math.round(n).toLocaleString("tr-TR")}`
 }
 
@@ -123,7 +122,7 @@ export function RevenueBreakdownChart() {
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-100 dark:text-slate-800" />
           <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtTRY(Number(v))} />
+          <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={72} tickFormatter={(v) => fmtTRY(Number(v))} />
           <Tooltip
             contentStyle={{ background: "white", border: "1px solid #e2e8f0", borderRadius: "10px", fontSize: 12 }}
             labelStyle={{ fontWeight: 700 }}

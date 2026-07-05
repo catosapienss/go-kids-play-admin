@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { QuickSale } from "@/components/perakende/quick-sale"
+import { RetailDayPanel } from "@/components/perakende/retail-day-panel"
 import { ProductManager } from "@/components/perakende/product-manager"
 import { useAuth } from "@/contexts/auth-context"
 import { ShoppingCart, Package } from "lucide-react"
@@ -22,6 +23,8 @@ export default function PerakendePage() {
   const { user } = useAuth()
   const isAdmin = user?.role === "admin" || user?.role === "super_admin"
   const [tab, setTab] = useState<Tab>("sale")
+  // Bumped after every checkout so the day panel refreshes instantly.
+  const [salesRefresh, setSalesRefresh] = useState(0)
 
   return (
     <MainLayout title="Perakende Satış" subtitle="Hızlı kasa · ürün yönetimi">
@@ -34,7 +37,13 @@ export default function PerakendePage() {
           </div>
         )}
 
-        {tab === "sale" && <QuickSale />}
+        {tab === "sale" && (
+          <>
+            {/* Daily finance summary + sales feed — visible to ALL staff */}
+            <RetailDayPanel refreshKey={salesRefresh} />
+            <QuickSale onSaleComplete={() => setSalesRefresh((k) => k + 1)} />
+          </>
+        )}
         {tab === "products" && isAdmin && (
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
             <ProductManager />
