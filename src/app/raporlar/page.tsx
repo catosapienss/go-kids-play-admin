@@ -20,6 +20,7 @@ import { DayEndPanel }            from "@/components/raporlar/day-end-panel"
 import { RecentTransactionsPanel } from "@/components/raporlar/recent-transactions-panel"
 import { DiscountsPanel } from "@/components/raporlar/discounts-panel"
 import { RetailDiscountsPanel } from "@/components/raporlar/retail-discounts-panel"
+import { DailyNotesReportPanel } from "@/components/raporlar/daily-notes-report-panel"
 
 // ─── /raporlar — Advanced Reporting & Business Insights ──────────────────────
 //
@@ -125,6 +126,7 @@ export default function RaporlarPage() {
               </div>
               <PeakHoursHeatmap />
               <StaffPerformancePanel />
+              <DailyNotesReportPanel />
             </div>
           )}
         </div>

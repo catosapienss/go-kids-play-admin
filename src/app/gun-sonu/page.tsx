@@ -8,6 +8,7 @@ import { StaffAnalyticsPanel } from "@/components/dashboard/staff-analytics"
 import { PopularPackagesPanel } from "@/components/dashboard/popular-packages"
 import { HourlyDensityChart, PaymentSplitPanel } from "@/components/dashboard/revenue-analytics"
 import { StaffClosingForm } from "@/components/gun-sonu/staff-closing-form"
+import { DailyOperationsNotesSection } from "@/components/gun-sonu/daily-operations-notes-section"
 import { useAuth } from "@/contexts/auth-context"
 import { isStaffRole } from "@/types/auth"
 
@@ -23,6 +24,7 @@ export default function GunSonuPage() {
       >
         <div className="max-w-xl mx-auto space-y-4">
           <StaffClosingForm />
+          <DailyOperationsNotesSection />
         </div>
       </MainLayout>
     )
@@ -41,6 +43,11 @@ export default function GunSonuPage() {
 
         <section>
           <DayEndPanel />
+        </section>
+
+        {/* Daily operations notes — review shift log before finalising */}
+        <section>
+          <DailyOperationsNotesSection />
         </section>
 
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-5">
