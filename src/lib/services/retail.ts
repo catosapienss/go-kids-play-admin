@@ -1,7 +1,11 @@
 import { createClient } from "@/lib/supabase/client"
+import {
+  cartTotal, cartDiscountTotal, effectiveUnitPrice, lineTotal, lineDiscountAmount,
+  retailDiscountCategory,
+} from "@/types/retail"
 import type {
   CartLine, DailyRevenueBreakdown, PaymentMethod, Product,
-  RetailDayStats, RetailSaleListRow, RetailTodaySummary,
+  RetailDayStats, RetailSaleListRow, RetailTodaySummary, RetailDiscountReason,
 } from "@/types/retail"
 
 // ─── Retail service ──────────────────────────────────────────────────────────
@@ -77,37 +81,75 @@ export async function checkoutSale(input: {
   parentId?: string
 }): Promise<{ saleId: string; total: number }> {
   const supabase = createClient()
-  const total = input.cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
+  // Effective totals — honour any per-line retail discount / price override.
+  const total         = cartTotal(input.cart)
+  const discountTotal = cartDiscountTotal(input.cart)
 
-  // 1. Header row
-  const { data: sale, error: saleErr } = await supabase
+  // 1. Header row. `discount_total` only sent when the schema has it (migration
+  //    021); we retry without it on a missing-column error so checkout never
+  //    breaks during the deploy window.
+  const headerBase = {
+    cashier_id:     input.cashierId,
+    payment_method: input.paymentMethod,
+    total_amount:   total,
+    cash_amount:    input.cashAmount,
+    card_amount:    input.cardAmount,
+    notes:          input.notes ?? null,
+    parent_id:      input.parentId ?? null,
+  }
+  let saleRes = await supabase
     .from("retail_sales")
-    .insert({
-      cashier_id:     input.cashierId,
-      payment_method: input.paymentMethod,
-      total_amount:   total,
-      cash_amount:    input.cashAmount,
-      card_amount:    input.cardAmount,
-      notes:          input.notes ?? null,
-      parent_id:      input.parentId ?? null,
-    })
+    .insert({ ...headerBase, discount_total: discountTotal })
     .select("id")
     .single()
-  if (saleErr || !sale) throw saleErr ?? new Error("Sale insert failed")
+  if (saleRes.error && isMissingColumn(saleRes.error, "discount_total")) {
+    saleRes = await supabase.from("retail_sales").insert(headerBase).select("id").single()
+  }
+  if (saleRes.error || !saleRes.data) throw saleRes.error ?? new Error("Sale insert failed")
+  const saleId = saleRes.data.id as string
 
-  // 2. Line items
-  const items = input.cart.map((l) => ({
-    sale_id:      sale.id,
-    product_id:   l.productId,
-    product_name: l.productName,
-    quantity:     l.quantity,
-    unit_price:   l.unitPrice,
-    line_total:   l.unitPrice * l.quantity,
-  }))
-  const { error: itemsErr } = await supabase.from("retail_sale_items").insert(items)
+  // 2. Line items — store original + effective price + discount metadata.
+  const richItems = input.cart.map((l) => {
+    const finalUnit = effectiveUnitPrice(l)
+    return {
+      sale_id:             saleId,
+      product_id:          l.productId,
+      product_name:        l.productName,
+      quantity:            l.quantity,
+      unit_price:          finalUnit,                 // effective (existing reports read this)
+      line_total:          lineTotal(l),
+      original_unit_price: l.unitPrice,
+      discount_type:       l.discount?.type   ?? null,
+      discount_value:      l.discount?.value  ?? null,
+      final_unit_price:    finalUnit,
+      discount_amount:     lineDiscountAmount(l),
+      discount_reason:     l.discount?.reason ?? null,
+      custom_note:         l.discount?.note   ?? null,
+      applied_by:          l.discount ? input.cashierId : null,
+    }
+  })
+  let itemsErr = (await supabase.from("retail_sale_items").insert(richItems)).error
+  if (itemsErr && isMissingColumn(itemsErr, "original_unit_price")) {
+    // Pre-migration fallback — insert the legacy shape (effective prices).
+    const legacyItems = input.cart.map((l) => ({
+      sale_id:      saleId,
+      product_id:   l.productId,
+      product_name: l.productName,
+      quantity:     l.quantity,
+      unit_price:   effectiveUnitPrice(l),
+      line_total:   lineTotal(l),
+    }))
+    itemsErr = (await supabase.from("retail_sale_items").insert(legacyItems)).error
+  }
   if (itemsErr) throw itemsErr
 
-  return { saleId: sale.id as string, total }
+  return { saleId, total }
+}
+
+/** True when a PostgREST error is a missing-column / schema-cache miss. */
+function isMissingColumn(err: { message?: string } | null, column: string): boolean {
+  const msg = err?.message ?? ""
+  return msg.includes(column) && (msg.includes("column") || msg.includes("schema cache"))
 }
 
 // ─── Day feed + finance summary (staff-visible, plain selects w/ RLS) ────────
@@ -127,9 +169,11 @@ function todayStartIso(): string {
 export async function listTodayRetailSales(): Promise<RetailSaleListRow[]> {
   const supabase = createClient()
 
+  // discount_total exists after migration 021; select("*") tolerates its
+  // absence so the feed keeps working during the deploy window.
   const { data: sales, error } = await supabase
     .from("retail_sales")
-    .select("id, sold_at, payment_method, total_amount, cash_amount, card_amount, notes, voided")
+    .select("*")
     .gte("sold_at", todayStartIso())
     .order("sold_at", { ascending: false })
     .limit(300)
@@ -162,6 +206,7 @@ export async function listTodayRetailSales(): Promise<RetailSaleListRow[]> {
     totalAmount:   Number(s.total_amount ?? 0),
     cashAmount:    Number(s.cash_amount ?? 0),
     cardAmount:    Number(s.card_amount ?? 0),
+    discountTotal: Number((s as { discount_total?: number | string }).discount_total ?? 0),
     itemsLabel:    labelMap.get(s.id as string) ?? ((s.notes as string | null) ?? "Perakende"),
     itemCount:     countMap.get(s.id as string) ?? 0,
     notes:         (s.notes as string | null) ?? null,
@@ -172,14 +217,152 @@ export async function listTodayRetailSales(): Promise<RetailSaleListRow[]> {
 export function summariseRetailDay(rows: RetailSaleListRow[]): RetailDayStats {
   return rows.reduce<RetailDayStats>(
     (acc, r) => ({
-      cashTotal:  acc.cashTotal  + r.cashAmount,
-      cardTotal:  acc.cardTotal  + r.cardAmount,
-      grandTotal: acc.grandTotal + r.totalAmount,
-      itemsSold:  acc.itemsSold  + r.itemCount,
-      saleCount:  acc.saleCount  + 1,
+      cashTotal:     acc.cashTotal     + r.cashAmount,
+      cardTotal:     acc.cardTotal     + r.cardAmount,
+      grandTotal:    acc.grandTotal    + r.totalAmount,
+      itemsSold:     acc.itemsSold     + r.itemCount,
+      saleCount:     acc.saleCount     + 1,
+      discountTotal: acc.discountTotal + r.discountTotal,
     }),
-    { cashTotal: 0, cardTotal: 0, grandTotal: 0, itemsSold: 0, saleCount: 0 },
+    { cashTotal: 0, cardTotal: 0, grandTotal: 0, itemsSold: 0, saleCount: 0, discountTotal: 0 },
   )
+}
+
+// ─── Retail discount analytics (dashboard + reports) ─────────────────────────
+
+export interface RetailDiscountBreakdown {
+  totalSales:        number   // effective retail revenue (non-voided)
+  totalDiscount:     number   // Σ discount given
+  staffDiscount:     number   // reason category: staff / manager_approval
+  promotionDiscount: number   // reason category: promotion / vip
+  otherDiscount:     number   // everything else (customer, damaged, manual, other)
+  saleCount:         number
+  discountedLines:   number
+}
+
+/**
+ * Retail sales + discount breakdown for a date range. Read-only, tolerant of
+ * the pre-021 schema (returns zero discounts). Powers the dashboard retail
+ * analytics section and the reports discount view.
+ */
+export async function fetchRetailDiscountBreakdown(
+  fromIso: string, toIso: string,
+): Promise<RetailDiscountBreakdown> {
+  const empty: RetailDiscountBreakdown = {
+    totalSales: 0, totalDiscount: 0, staffDiscount: 0, promotionDiscount: 0,
+    otherDiscount: 0, saleCount: 0, discountedLines: 0,
+  }
+  try {
+    const supabase = createClient()
+    const { data: sales, error } = await supabase
+      .from("retail_sales")
+      .select("id, total_amount, voided")
+      .gte("sold_at", fromIso)
+      .lte("sold_at", toIso)
+    if (error) throw error
+    const live = (sales ?? []).filter((s) => !(s as { voided?: boolean }).voided)
+    if (live.length === 0) return empty
+
+    const out = { ...empty, saleCount: live.length }
+    out.totalSales = live.reduce((s, r) => s + Number((r as { total_amount?: number }).total_amount ?? 0), 0)
+
+    const ids = live.map((s) => s.id as string)
+    const { data: items } = await supabase
+      .from("retail_sale_items")
+      .select("sale_id, discount_amount, discount_reason")
+      .in("sale_id", ids)
+
+    for (const it of (items ?? []) as Array<{ discount_amount?: number | string | null; discount_reason?: string | null }>) {
+      const amt = Number(it.discount_amount ?? 0)
+      if (amt <= 0) continue
+      out.discountedLines += 1
+      out.totalDiscount += amt
+      const cat = retailDiscountCategory(it.discount_reason as RetailDiscountReason | null)
+      if (cat === "staff") out.staffDiscount += amt
+      else if (cat === "promotion") out.promotionDiscount += amt
+      else out.otherDiscount += amt
+    }
+    return out
+  } catch {
+    return empty
+  }
+}
+
+// ─── Retail discount history (reports) ──────────────────────────────────────
+
+export interface RetailDiscountLine {
+  id:                string
+  soldAt:            string
+  productName:       string
+  quantity:          number
+  originalUnitPrice: number
+  finalUnitPrice:    number
+  discountAmount:    number
+  discountType:      string | null
+  discountValue:     number | null
+  reason:            string | null
+  note:              string | null
+  staffName:         string | null
+}
+
+/** Discounted retail lines in a date range, newest first — for the reports
+ *  discount history. Never mutates; tolerant of the pre-021 schema. */
+export async function listRetailDiscountLines(
+  fromIso: string, toIso: string, limit = 100,
+): Promise<RetailDiscountLine[]> {
+  try {
+    const supabase = createClient()
+    const { data: sales, error } = await supabase
+      .from("retail_sales")
+      .select("id, sold_at, voided")
+      .gte("sold_at", fromIso)
+      .lte("sold_at", toIso)
+      .order("sold_at", { ascending: false })
+      .limit(500)
+    if (error) throw error
+    const live = (sales ?? []).filter((s) => !(s as { voided?: boolean }).voided)
+    if (live.length === 0) return []
+    const soldAtMap = new Map(live.map((s) => [s.id as string, s.sold_at as string]))
+
+    const { data: items, error: iErr } = await supabase
+      .from("retail_sale_items")
+      .select("id, sale_id, product_name, quantity, original_unit_price, final_unit_price, unit_price, discount_amount, discount_type, discount_value, discount_reason, custom_note, applied_by")
+      .in("sale_id", live.map((s) => s.id as string))
+      .gt("discount_amount", 0)
+      .limit(limit)
+    if (iErr) throw iErr
+    const rows = (items ?? []) as Array<Record<string, unknown>>
+    if (rows.length === 0) return []
+
+    // Resolve staff names.
+    const staffIds = Array.from(new Set(rows.map((r) => r.applied_by).filter(Boolean))) as string[]
+    const nameMap = new Map<string, string>()
+    if (staffIds.length > 0) {
+      const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", staffIds)
+      for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+        if (p.full_name) nameMap.set(p.id, p.full_name)
+      }
+    }
+
+    return rows
+      .map((r): RetailDiscountLine => ({
+        id:                r.id as string,
+        soldAt:            soldAtMap.get(r.sale_id as string) ?? "",
+        productName:       (r.product_name as string) ?? "Ürün",
+        quantity:          Number(r.quantity ?? 1),
+        originalUnitPrice: Number(r.original_unit_price ?? r.unit_price ?? 0),
+        finalUnitPrice:    Number(r.final_unit_price ?? r.unit_price ?? 0),
+        discountAmount:    Number(r.discount_amount ?? 0),
+        discountType:      (r.discount_type as string | null) ?? null,
+        discountValue:     r.discount_value != null ? Number(r.discount_value) : null,
+        reason:            (r.discount_reason as string | null) ?? null,
+        note:              (r.custom_note as string | null) ?? null,
+        staffName:         r.applied_by ? (nameMap.get(r.applied_by as string) ?? null) : null,
+      }))
+      .sort((a, b) => new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime())
+  } catch {
+    return []
+  }
 }
 
 // ─── Reporting RPCs ──────────────────────────────────────────────────────────

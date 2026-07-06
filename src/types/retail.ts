@@ -46,11 +46,91 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   split: "Karma",
 }
 
+// ─── Retail discount / price-override model ──────────────────────────────────
+//
+// Discounts apply ONLY to retail products, never to play sessions. The product's
+// list price (`unitPrice`) is NEVER mutated — the discount is a per-line
+// transaction override. Three methods:
+//   • fixed    → ₺ off the unit price        (₺250 − ₺50 = ₺200)
+//   • percent  → % off the unit price        (₺200 − 10% = ₺180)
+//   • override → sell at a custom unit price  (₺250 → ₺200)
+
+export type RetailDiscountType = "fixed" | "percent" | "override"
+
+export type RetailDiscountReason =
+  | "staff" | "customer" | "promotion" | "vip"
+  | "manager_approval" | "damaged" | "manual" | "other"
+
+export const RETAIL_DISCOUNT_REASON_LABELS: Record<RetailDiscountReason, string> = {
+  staff:            "Personel İndirimi",
+  customer:         "Müşteri İndirimi",
+  promotion:        "Promosyon",
+  vip:              "VIP Müşteri",
+  manager_approval: "Yönetici Onayı",
+  damaged:          "Hasarlı Paket",
+  manual:           "Manuel Düzenleme",
+  other:            "Diğer",
+}
+
+/** Broad category used for dashboard grouping (staff vs promo vs other). */
+export function retailDiscountCategory(reason: RetailDiscountReason | null | undefined):
+  "staff" | "promotion" | "other" {
+  if (reason === "staff" || reason === "manager_approval") return "staff"
+  if (reason === "promotion" || reason === "vip")          return "promotion"
+  return "other"
+}
+
+export interface RetailLineDiscount {
+  type:   RetailDiscountType
+  value:  number                    // ₺ off/unit, %, or the override unit price
+  reason: RetailDiscountReason
+  note?:  string                    // free text (required-ish when reason==="other")
+}
+
 export interface CartLine {
   productId: string
   productName: string
-  unitPrice: number
+  unitPrice: number                 // ORIGINAL list price — never mutated
   quantity: number
+  discount?: RetailLineDiscount     // optional per-line discount / override
+}
+
+// ─── Money math (single source of truth for retail totals) ──────────────────
+
+function round2(n: number): number { return Math.round(n * 100) / 100 }
+
+/** Effective unit price after any discount/override. Clamped to ≥ 0. */
+export function effectiveUnitPrice(line: CartLine): number {
+  const base = line.unitPrice
+  const d = line.discount
+  if (!d) return round2(base)
+  if (d.type === "override") return round2(Math.max(0, d.value))
+  if (d.type === "percent") {
+    const pct = Math.min(100, Math.max(0, d.value))
+    return round2(Math.max(0, base * (1 - pct / 100)))
+  }
+  // fixed ₺ off per unit
+  return round2(Math.max(0, base - Math.max(0, d.value)))
+}
+
+/** Final charged total for a line (effective unit price × quantity). */
+export function lineTotal(line: CartLine): number {
+  return round2(effectiveUnitPrice(line) * line.quantity)
+}
+
+/** ₺ discounted on a line vs the original list price. */
+export function lineDiscountAmount(line: CartLine): number {
+  return round2((line.unitPrice - effectiveUnitPrice(line)) * line.quantity)
+}
+
+/** Sum of final line totals across the cart. */
+export function cartTotal(cart: CartLine[]): number {
+  return round2(cart.reduce((s, l) => s + lineTotal(l), 0))
+}
+
+/** Sum of ₺ discounted across the cart. */
+export function cartDiscountTotal(cart: CartLine[]): number {
+  return round2(cart.reduce((s, l) => s + lineDiscountAmount(l), 0))
 }
 
 export interface RetailSaleInsert {
@@ -73,11 +153,12 @@ export interface RetailSaleItemInsert {
 
 /** Day-level finance summary shown to ALL staff on /perakende. */
 export interface RetailDayStats {
-  cashTotal:  number
-  cardTotal:  number
-  grandTotal: number
-  itemsSold:  number    // Σ quantity across all line items
-  saleCount:  number    // number of (non-voided) sales
+  cashTotal:     number
+  cardTotal:     number
+  grandTotal:    number
+  itemsSold:     number    // Σ quantity across all line items
+  saleCount:     number    // number of (non-voided) sales
+  discountTotal: number    // Σ retail discount given today
 }
 
 /** One row of the day's sales feed (newest first). */
@@ -88,6 +169,7 @@ export interface RetailSaleListRow {
   totalAmount:   number
   cashAmount:    number
   cardAmount:    number
+  discountTotal: number          // ₺ discounted on this sale
   itemsLabel:    string          // "Çorap × 2 · Su × 1"
   itemCount:     number          // Σ quantity in this sale
   notes:         string | null

@@ -522,6 +522,22 @@ export function SectionDiscounts() {
         </Field>
       </FieldGroup>
 
+      <FieldGroup title="Perakende İndirim Yetkileri">
+        <Field label="Perakende indirimi aktif" inline hint="Personel çorap, boyama vb. ürünlere indirim uygulayabilir">
+          <Toggle checked={s.retailDiscountEnabled} onChange={(v) => up({ retailDiscountEnabled: v })} />
+        </Field>
+        <Field label="Manuel fiyat (override) izni" inline hint="Personel ürünü özel bir fiyata satabilir — ürün fiyatı değişmez">
+          <Toggle checked={s.retailPriceOverride} onChange={(v) => up({ retailPriceOverride: v })} />
+        </Field>
+        <Field label="Personel maks. perakende indirimi" inline hint="Satır başına personelin uygulayabileceği maksimum ₺ indirim (0 = sınırsız)">
+          <NumberInput value={s.retailMaxDiscount} onChange={(v) => up({ retailMaxDiscount: v })}
+                       min={0} max={5000} step={10} suffix="₺" />
+        </Field>
+        <Field label="Admin / Yönetici" inline hint="Her zaman indirim + manuel fiyat uygulayabilir">
+          <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">∞ Sınırsız</span>
+        </Field>
+      </FieldGroup>
+
       <SaveBar saved={saved} onReset={() => replace("discounts", DEFAULT_SETTINGS.discounts)} />
     </>
   )

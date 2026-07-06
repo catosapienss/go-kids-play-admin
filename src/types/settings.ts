@@ -112,6 +112,13 @@ export interface DiscountSettings {
   staffMaxDiscount:      number
   managerMaxDiscount:    number
   allowPercentDiscount:  boolean
+  // ── Retail (perakende) discount permissions — owner-configurable ──────────
+  //   retailDiscountEnabled — staff may apply retail discounts at all
+  //   retailPriceOverride   — staff may set a custom manual price (override)
+  //   retailMaxDiscount     — max ₺ discount per retail line for staff (0 = no cap)
+  retailDiscountEnabled: boolean
+  retailPriceOverride:   boolean
+  retailMaxDiscount:     number
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -186,6 +193,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     staffMaxDiscount:     50,
     managerMaxDiscount:   200,
     allowPercentDiscount: true,
+    retailDiscountEnabled: true,
+    retailPriceOverride:   true,
+    retailMaxDiscount:     0,
   },
 }
 

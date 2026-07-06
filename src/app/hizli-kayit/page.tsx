@@ -23,7 +23,7 @@ import {
 } from "@/lib/services/discount.service"
 import { useSettingsSection } from "@/lib/settings/settings-store"
 import { recordAudit } from "@/lib/reliability/audit-log"
-import type { CartLine } from "@/types/retail"
+import { cartTotal, type CartLine } from "@/types/retail"
 import { useAuth } from "@/contexts/auth-context"
 import { useSessionStore } from "@/lib/stores/session-store"
 import { toast } from "sonner"
@@ -102,7 +102,8 @@ export default function HizliKayitPage() {
 
   // Sum each child's individual price (each can have a different duration).
   const gameTotal    = children.reduce((s, c) => s + (c.price || 0), 0)
-  const retailTotal  = retailCart.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
+  // Retail total honours per-line discounts / price overrides (effective price).
+  const retailTotal  = cartTotal(retailCart)
   const grossTotal   = gameTotal + retailTotal
   // Discount applies to the GAME portion only — retail products are hard
   // goods, no loyalty markdown.

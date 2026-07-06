@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import {
-  Banknote, CreditCard, Sigma, PackageCheck, ReceiptText, Loader2, AlertCircle,
+  Banknote, CreditCard, Sigma, PackageCheck, ReceiptText, Loader2, AlertCircle, Tag,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { listTodayRetailSales, summariseRetailDay } from "@/lib/services/retail"
@@ -44,7 +44,7 @@ export function RetailDayPanel({ refreshKey = 0 }: { refreshKey?: number }) {
   return (
     <div className="space-y-3">
       {/* ── Finance summary strip ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+      <div className={cn("grid grid-cols-2 sm:grid-cols-3 gap-2", stats.discountTotal > 0 ? "lg:grid-cols-6" : "lg:grid-cols-5")}>
         <StatCard
           label="Nakit Toplamı"
           value={rows ? fmt(stats.cashTotal) : undefined}
@@ -76,6 +76,14 @@ export function RetailDayPanel({ refreshKey = 0 }: { refreshKey?: number }) {
           icon={ReceiptText}
           tone="slate"
         />
+        {stats.discountTotal > 0 && (
+          <StatCard
+            label="İndirim"
+            value={fmt(stats.discountTotal)}
+            icon={Tag}
+            tone="amber"
+          />
+        )}
       </div>
 
       {/* ── Today's sales feed (newest first) ─────────────────────────────── */}

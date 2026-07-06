@@ -14,6 +14,7 @@ import { EventSummaryPanel } from "@/components/dashboard/event-summary-panel"
 import { RepeatVisitorsPanel } from "@/components/dashboard/repeat-visitors-panel"
 import { MembershipsAnalyticsPanel } from "@/components/uyelikler/memberships-analytics-panel"
 import { OwnerRevenuePanel } from "@/components/dashboard/owner-revenue-panel"
+import { RetailAnalyticsPanel } from "@/components/dashboard/retail-analytics-panel"
 
 export default function DashboardPage() {
   const today = new Date().toLocaleDateString("tr-TR", {
@@ -52,6 +53,11 @@ export default function DashboardPage() {
           <StaffAnalyticsPanel />
           <PopularPackagesPanel />
           <EventSummaryPanel />
+        </section>
+
+        {/* 3b. Retail analytics — today's retail sales + discount breakdown */}
+        <section>
+          <RetailAnalyticsPanel />
         </section>
 
         {/* 4. Membership insight — KPI strip */}

@@ -4,7 +4,14 @@ import { useEffect, useState } from "react"
 import { ShoppingBag, Minus, Plus, X, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { listProducts } from "@/lib/services/retail"
-import type { CartLine, Product } from "@/types/retail"
+import {
+  cartTotal, effectiveUnitPrice, lineTotal,
+  RETAIL_DISCOUNT_REASON_LABELS,
+  type CartLine, type Product, type RetailLineDiscount,
+} from "@/types/retail"
+import { RetailLineDiscountMenu } from "@/components/perakende/retail-line-discount"
+import { useSettingsSection } from "@/lib/settings/settings-store"
+import { useAuth } from "@/contexts/auth-context"
 
 // ─── Inline Retail Panel (Section 4) ─────────────────────────────────────────
 //
@@ -25,6 +32,18 @@ export function InlineRetailPanel({ cart, onChange }: Props) {
   const [search,   setSearch]   = useState("")
   const [busy,     setBusy]     = useState(true)
   const [error,    setError]    = useState<string | null>(null)
+
+  // Owner-configured retail discount permissions (admin/manager always allowed).
+  const { user } = useAuth()
+  const limits = useSettingsSection("discounts")
+  const isPrivileged = user?.role === "admin" || user?.role === "super_admin" || user?.role === "manager"
+  const canDiscount  = isPrivileged || limits.retailDiscountEnabled
+  const canOverride  = isPrivileged || limits.retailPriceOverride
+  const maxDiscount  = isPrivileged ? 0 : (limits.retailMaxDiscount || 0)
+
+  function setLineDiscount(productId: string, discount: RetailLineDiscount | undefined): void {
+    onChange(cart.map((l) => l.productId === productId ? { ...l, discount } : l))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -62,7 +81,7 @@ export function InlineRetailPanel({ cart, onChange }: Props) {
     onChange(cart.filter((l) => l.productId !== productId))
   }
 
-  const cartTotal = cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0)
+  const cartSum   = cartTotal(cart)
   const filtered  = products
     ? products.filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase()))
     : []
@@ -81,11 +100,11 @@ export function InlineRetailPanel({ cart, onChange }: Props) {
             </p>
           </div>
         </div>
-        {cartTotal > 0 && (
+        {cartSum > 0 && (
           <div className="text-right">
             <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Perakende toplamı</p>
             <p className="text-base font-black text-slate-900 dark:text-white tabular-nums">
-              ₺{cartTotal.toLocaleString("tr-TR")}
+              ₺{cartSum.toLocaleString("tr-TR")}
             </p>
           </div>
         )}
@@ -94,25 +113,46 @@ export function InlineRetailPanel({ cart, onChange }: Props) {
       {/* Cart lines */}
       {cart.length > 0 && (
         <div className="space-y-1.5">
-          {cart.map((line) => (
-            <div key={line.productId} className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/5 border border-amber-200/60 dark:border-amber-500/15">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{line.productName}</p>
-                <p className="text-[10px] text-slate-500 tabular-nums">
-                  ₺{line.unitPrice.toLocaleString("tr-TR")} ·
-                  satır toplamı <strong>₺{(line.unitPrice * line.quantity).toLocaleString("tr-TR")}</strong>
-                </p>
+          {cart.map((line) => {
+            const eff = effectiveUnitPrice(line)
+            const discounted = !!line.discount
+            return (
+              <div key={line.productId} className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/5 border border-amber-200/60 dark:border-amber-500/15">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{line.productName}</p>
+                  <p className="text-[10px] text-slate-500 tabular-nums">
+                    {discounted ? (
+                      <><s className="text-slate-400">₺{line.unitPrice.toLocaleString("tr-TR")}</s> <strong className="text-amber-700 dark:text-amber-400">₺{eff.toLocaleString("tr-TR")}</strong></>
+                    ) : (
+                      <>₺{line.unitPrice.toLocaleString("tr-TR")}</>
+                    )}
+                    {" · "}satır <strong>₺{lineTotal(line).toLocaleString("tr-TR")}</strong>
+                  </p>
+                  {discounted && (
+                    <p className="text-[9px] font-bold text-amber-600 dark:text-amber-400 truncate">
+                      {RETAIL_DISCOUNT_REASON_LABELS[line.discount!.reason]}
+                      {line.discount!.note ? ` · ${line.discount!.note}` : ""}
+                    </p>
+                  )}
+                </div>
+                <RetailLineDiscountMenu
+                  line={line}
+                  canDiscount={canDiscount}
+                  canOverride={canOverride}
+                  maxDiscount={maxDiscount}
+                  onChange={(d) => setLineDiscount(line.productId, d)}
+                />
+                <QtyStepper qty={line.quantity} onChange={(q) => setQty(line.productId, q)} />
+                <button
+                  onClick={() => removeLine(line.productId)}
+                  className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-500/15 flex items-center justify-center"
+                  aria-label="Satırı sil"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <QtyStepper qty={line.quantity} onChange={(q) => setQty(line.productId, q)} />
-              <button
-                onClick={() => removeLine(line.productId)}
-                className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-500/15 flex items-center justify-center"
-                aria-label="Satırı sil"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

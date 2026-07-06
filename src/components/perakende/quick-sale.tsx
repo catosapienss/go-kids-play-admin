@@ -10,8 +10,12 @@ import { useAuth } from "@/contexts/auth-context"
 import { listProducts, checkoutSale } from "@/lib/services/retail"
 import {
   PAYMENT_METHOD_LABELS, PRODUCT_CATEGORY_LABELS, PRODUCT_CATEGORY_COLORS,
+  RETAIL_DISCOUNT_REASON_LABELS,
+  cartTotal, cartDiscountTotal, effectiveUnitPrice, lineTotal,
 } from "@/types/retail"
-import type { CartLine, PaymentMethod, Product } from "@/types/retail"
+import type { CartLine, PaymentMethod, Product, RetailLineDiscount } from "@/types/retail"
+import { RetailLineDiscountMenu } from "@/components/perakende/retail-line-discount"
+import { useSettingsSection } from "@/lib/settings/settings-store"
 import { cn } from "@/lib/utils"
 
 // ─── Quick Sale ──────────────────────────────────────────────────────────────
@@ -60,10 +64,19 @@ export function QuickSale({ onSaleComplete }: QuickSaleProps = {}) {
 
   useEffect(() => { void reload() }, [reload])
 
-  const total = useMemo(
-    () => cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0),
-    [cart],
-  )
+  const total = useMemo(() => cartTotal(cart), [cart])
+  const discountTotal = useMemo(() => cartDiscountTotal(cart), [cart])
+
+  // Owner-configured retail discount permissions (admin/manager always allowed).
+  const limits = useSettingsSection("discounts")
+  const isPrivileged = user?.role === "admin" || user?.role === "super_admin" || user?.role === "manager"
+  const canDiscount  = isPrivileged || limits.retailDiscountEnabled
+  const canOverride  = isPrivileged || limits.retailPriceOverride
+  const maxDiscount  = isPrivileged ? 0 : (limits.retailMaxDiscount || 0)
+
+  function setLineDiscount(productId: string, discount: RetailLineDiscount | undefined): void {
+    setCart((prev) => prev.map((l) => l.productId === productId ? { ...l, discount } : l))
+  }
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -258,40 +271,69 @@ export function QuickSale({ onSaleComplete }: QuickSaleProps = {}) {
           </div>
         ) : (
           <div className="space-y-2 mb-4 max-h-[40vh] overflow-y-auto">
-            {cart.map((l) => (
-              <div key={l.productId} className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-2.5">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                    {l.productName}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    {fmt(l.unitPrice)} × {l.quantity}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => bumpQty(l.productId, -1)} className="p-1 rounded-md bg-white dark:bg-slate-700 text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600">
-                    <Minus className="w-3 h-3" />
+            {cart.map((l) => {
+              const eff = effectiveUnitPrice(l)
+              const discounted = !!l.discount
+              return (
+                <div key={l.productId} className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 p-2.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                      {l.productName}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {discounted ? (
+                        <><s className="text-slate-400">{fmt(l.unitPrice)}</s> <strong className="text-amber-700 dark:text-amber-400">{fmt(eff)}</strong> × {l.quantity}</>
+                      ) : (
+                        <>{fmt(l.unitPrice)} × {l.quantity}</>
+                      )}
+                    </p>
+                    {discounted && (
+                      <p className="text-[9px] font-bold text-amber-600 dark:text-amber-400 truncate">
+                        {RETAIL_DISCOUNT_REASON_LABELS[l.discount!.reason]}
+                        {l.discount!.note ? ` · ${l.discount!.note}` : ""}
+                      </p>
+                    )}
+                  </div>
+                  <RetailLineDiscountMenu
+                    line={l}
+                    canDiscount={canDiscount}
+                    canOverride={canOverride}
+                    maxDiscount={maxDiscount}
+                    onChange={(d) => setLineDiscount(l.productId, d)}
+                  />
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => bumpQty(l.productId, -1)} className="p-1 rounded-md bg-white dark:bg-slate-700 text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600">
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="text-sm font-bold w-6 text-center tabular-nums">{l.quantity}</span>
+                    <button onClick={() => bumpQty(l.productId, +1)} className="p-1 rounded-md bg-white dark:bg-slate-700 text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600">
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="text-sm font-bold tabular-nums w-16 text-right">
+                    {fmt(lineTotal(l))}
+                  </div>
+                  <button onClick={() => removeLine(l.productId)} className="p-1 text-slate-400 hover:text-rose-500" aria-label="Kaldır">
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-sm font-bold w-6 text-center tabular-nums">{l.quantity}</span>
-                  <button onClick={() => bumpQty(l.productId, +1)} className="p-1 rounded-md bg-white dark:bg-slate-700 text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600">
-                    <Plus className="w-3 h-3" />
-                  </button>
                 </div>
-                <div className="text-sm font-bold tabular-nums w-16 text-right">
-                  {fmt(l.unitPrice * l.quantity)}
-                </div>
-                <button onClick={() => removeLine(l.productId)} className="p-1 text-slate-400 hover:text-rose-500" aria-label="Kaldır">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
         {/* Total */}
-        <div className="flex items-baseline justify-between border-t border-slate-200 dark:border-slate-800 pt-3 mb-3">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Toplam</span>
-          <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">{fmt(total)}</span>
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 mb-3">
+          {discountTotal > 0 && (
+            <div className="flex items-baseline justify-between mb-1 text-xs">
+              <span className="text-amber-600 dark:text-amber-400 font-semibold">Perakende indirimi</span>
+              <span className="text-amber-600 dark:text-amber-400 font-bold tabular-nums">−{fmt(discountTotal)}</span>
+            </div>
+          )}
+          <div className="flex items-baseline justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Toplam</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">{fmt(total)}</span>
+          </div>
         </div>
 
         {/* Payment method */}
