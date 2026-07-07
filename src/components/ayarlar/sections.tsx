@@ -526,6 +526,12 @@ export function SectionDiscounts() {
         <Field label="Perakende indirimi aktif" inline hint="Personel çorap, boyama vb. ürünlere indirim uygulayabilir">
           <Toggle checked={s.retailDiscountEnabled} onChange={(v) => up({ retailDiscountEnabled: v })} />
         </Field>
+        <Field label="Sabit ₺ indirim izni" inline hint="Personel satır başına sabit ₺ indirim uygulayabilir">
+          <Toggle checked={s.retailAllowFixed} onChange={(v) => up({ retailAllowFixed: v })} />
+        </Field>
+        <Field label="Yüzde (%) indirim izni" inline hint="Personel yüzde indirim uygulayabilir">
+          <Toggle checked={s.retailAllowPercentage} onChange={(v) => up({ retailAllowPercentage: v })} />
+        </Field>
         <Field label="Manuel fiyat (override) izni" inline hint="Personel ürünü özel bir fiyata satabilir — ürün fiyatı değişmez">
           <Toggle checked={s.retailPriceOverride} onChange={(v) => up({ retailPriceOverride: v })} />
         </Field>

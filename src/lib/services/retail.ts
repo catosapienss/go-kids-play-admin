@@ -234,10 +234,13 @@ export interface RetailDiscountBreakdown {
   totalSales:        number   // effective retail revenue (non-voided)
   totalDiscount:     number   // Σ discount given
   staffDiscount:     number   // reason category: staff / manager_approval
-  promotionDiscount: number   // reason category: promotion / vip
-  otherDiscount:     number   // everything else (customer, damaged, manual, other)
-  saleCount:         number
-  discountedLines:   number
+  promotionDiscount: number   // reason category: promotion / vip / campaign / loyalty
+  otherDiscount:     number   // everything else (damaged, other, legacy)
+  saleCount:         number   // all non-voided sales
+  discountedLines:   number   // line items with a discount
+  discountedSales:   number   // distinct sales that carried any discount
+  /** Discount as a % of gross (final + discount). 0..100. */
+  discountPct:       number
 }
 
 /**
@@ -250,7 +253,7 @@ export async function fetchRetailDiscountBreakdown(
 ): Promise<RetailDiscountBreakdown> {
   const empty: RetailDiscountBreakdown = {
     totalSales: 0, totalDiscount: 0, staffDiscount: 0, promotionDiscount: 0,
-    otherDiscount: 0, saleCount: 0, discountedLines: 0,
+    otherDiscount: 0, saleCount: 0, discountedLines: 0, discountedSales: 0, discountPct: 0,
   }
   try {
     const supabase = createClient()
@@ -272,16 +275,22 @@ export async function fetchRetailDiscountBreakdown(
       .select("sale_id, discount_amount, discount_reason")
       .in("sale_id", ids)
 
-    for (const it of (items ?? []) as Array<{ discount_amount?: number | string | null; discount_reason?: string | null }>) {
+    const discountedSaleIds = new Set<string>()
+    for (const it of (items ?? []) as Array<{ sale_id?: string; discount_amount?: number | string | null; discount_reason?: string | null }>) {
       const amt = Number(it.discount_amount ?? 0)
       if (amt <= 0) continue
       out.discountedLines += 1
       out.totalDiscount += amt
+      if (it.sale_id) discountedSaleIds.add(it.sale_id)
       const cat = retailDiscountCategory(it.discount_reason as RetailDiscountReason | null)
       if (cat === "staff") out.staffDiscount += amt
       else if (cat === "promotion") out.promotionDiscount += amt
       else out.otherDiscount += amt
     }
+    out.discountedSales = discountedSaleIds.size
+    // % of gross (final revenue + discount given).
+    const gross = out.totalSales + out.totalDiscount
+    out.discountPct = gross > 0 ? Math.round((out.totalDiscount / gross) * 1000) / 10 : 0
     return out
   } catch {
     return empty

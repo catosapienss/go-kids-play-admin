@@ -5,7 +5,7 @@ import { ShoppingBag, Minus, Plus, X, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { listProducts } from "@/lib/services/retail"
 import {
-  cartTotal, effectiveUnitPrice, lineTotal,
+  cartTotal, cartDiscountTotal, effectiveUnitPrice, lineTotal,
   RETAIL_DISCOUNT_REASON_LABELS,
   type CartLine, type Product, type RetailLineDiscount,
 } from "@/types/retail"
@@ -39,6 +39,8 @@ export function InlineRetailPanel({ cart, onChange }: Props) {
   const isPrivileged = user?.role === "admin" || user?.role === "super_admin" || user?.role === "manager"
   const canDiscount  = isPrivileged || limits.retailDiscountEnabled
   const canOverride  = isPrivileged || limits.retailPriceOverride
+  const canFixed     = canDiscount && (isPrivileged || limits.retailAllowFixed)
+  const canPercent   = canDiscount && (isPrivileged || limits.retailAllowPercentage)
   const maxDiscount  = isPrivileged ? 0 : (limits.retailMaxDiscount || 0)
 
   function setLineDiscount(productId: string, discount: RetailLineDiscount | undefined): void {
@@ -82,6 +84,7 @@ export function InlineRetailPanel({ cart, onChange }: Props) {
   }
 
   const cartSum   = cartTotal(cart)
+  const cartDisc  = cartDiscountTotal(cart)
   const filtered  = products
     ? products.filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase()))
     : []
@@ -138,6 +141,8 @@ export function InlineRetailPanel({ cart, onChange }: Props) {
                 <RetailLineDiscountMenu
                   line={line}
                   canDiscount={canDiscount}
+                  canFixed={canFixed}
+                  canPercent={canPercent}
                   canOverride={canOverride}
                   maxDiscount={maxDiscount}
                   onChange={(d) => setLineDiscount(line.productId, d)}
@@ -153,6 +158,24 @@ export function InlineRetailPanel({ cart, onChange }: Props) {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Payment summary — original / discount / final (real charge) */}
+      {cart.length > 0 && cartDisc > 0 && (
+        <div className="rounded-xl border border-amber-200/70 dark:border-amber-500/20 bg-amber-50/40 dark:bg-amber-500/[0.04] px-3 py-2 space-y-0.5 text-xs">
+          <div className="flex items-center justify-between text-slate-500">
+            <span>Perakende Toplam</span>
+            <span className="tabular-nums">₺{(cartSum + cartDisc).toLocaleString("tr-TR")}</span>
+          </div>
+          <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 font-semibold">
+            <span>Perakende İndirim</span>
+            <span className="tabular-nums">−₺{cartDisc.toLocaleString("tr-TR")}</span>
+          </div>
+          <div className="flex items-center justify-between font-bold text-slate-900 dark:text-white pt-0.5 border-t border-amber-200/60 dark:border-amber-500/15">
+            <span>Genel Toplam</span>
+            <span className="tabular-nums">₺{cartSum.toLocaleString("tr-TR")}</span>
+          </div>
         </div>
       )}
 

@@ -58,25 +58,36 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 export type RetailDiscountType = "fixed" | "percent" | "override"
 
 export type RetailDiscountReason =
-  | "staff" | "customer" | "promotion" | "vip"
-  | "manager_approval" | "damaged" | "manual" | "other"
+  | "staff" | "vip" | "campaign" | "promotion"
+  | "damaged" | "loyalty" | "manager_approval" | "other"
+  // Legacy values kept so pre-existing rows still render a label.
+  | "customer" | "manual"
 
 export const RETAIL_DISCOUNT_REASON_LABELS: Record<RetailDiscountReason, string> = {
   staff:            "Personel İndirimi",
-  customer:         "Müşteri İndirimi",
-  promotion:        "Promosyon",
   vip:              "VIP Müşteri",
-  manager_approval: "Yönetici Onayı",
+  campaign:         "Kampanya",
+  promotion:        "Promosyon",
   damaged:          "Hasarlı Paket",
-  manual:           "Manuel Düzenleme",
+  loyalty:          "Sadakat İndirimi",
+  manager_approval: "Yönetici Onayı",
   other:            "Diğer",
+  // legacy
+  customer:         "Müşteri İndirimi",
+  manual:           "Manuel Düzenleme",
 }
+
+/** The reasons offered in the picker (spec order). Legacy values are display-
+ *  only and intentionally excluded from new selections. */
+export const RETAIL_DISCOUNT_REASON_OPTIONS: RetailDiscountReason[] = [
+  "staff", "vip", "campaign", "promotion", "damaged", "loyalty", "manager_approval", "other",
+]
 
 /** Broad category used for dashboard grouping (staff vs promo vs other). */
 export function retailDiscountCategory(reason: RetailDiscountReason | null | undefined):
   "staff" | "promotion" | "other" {
   if (reason === "staff" || reason === "manager_approval") return "staff"
-  if (reason === "promotion" || reason === "vip")          return "promotion"
+  if (reason === "promotion" || reason === "vip" || reason === "campaign" || reason === "loyalty") return "promotion"
   return "other"
 }
 

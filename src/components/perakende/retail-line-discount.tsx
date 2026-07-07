@@ -4,50 +4,58 @@ import { useEffect, useRef, useState } from "react"
 import { MoreVertical, Percent, Banknote, Tag, X, Check, Trash2, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  RETAIL_DISCOUNT_REASON_LABELS, effectiveUnitPrice, lineDiscountAmount,
+  RETAIL_DISCOUNT_REASON_LABELS, RETAIL_DISCOUNT_REASON_OPTIONS,
+  effectiveUnitPrice, lineDiscountAmount,
   type CartLine, type RetailDiscountType, type RetailDiscountReason, type RetailLineDiscount,
 } from "@/types/retail"
 
 // ─── Retail line discount / price-override menu ──────────────────────────────
 //
-// Compact per-line action menu for the retail cart. Three tools:
-//   • İndirim (₺ / %)  → fixed or percent discount
-//   • Manuel Fiyat     → sell at a custom unit price (override)
-//   • İndirimi Kaldır  → clear
+// Compact per-line action menu for the retail cart. Tools (gated by the owner's
+// permissions):
+//   • İndirim ₺ (fixed)  · İndirim % (percent)  · Manuel Fiyat (override)
+//   • İndirimi Kaldır
 //
-// Every discount requires a reason; "Diğer" reveals a free-text note. Staff
-// caps + override permission are passed in so the owner's settings gate the UI.
-
-const REASON_KEYS = Object.keys(RETAIL_DISCOUNT_REASON_LABELS) as RetailDiscountReason[]
+// A reason is MANDATORY before a discount can be applied; "Diğer" reveals a
+// required free-text field.
 
 interface Props {
   line:        CartLine
-  canDiscount: boolean   // may apply any discount
+  canDiscount: boolean   // may apply any discount at all
+  canFixed:    boolean   // may apply a fixed ₺ discount
+  canPercent:  boolean   // may apply a percentage discount
   canOverride: boolean   // may set a manual price
   maxDiscount: number    // ₺ cap per line for staff (0 = unlimited)
   onChange:    (discount: RetailLineDiscount | undefined) => void
 }
 
-export function RetailLineDiscountMenu({ line, canDiscount, canOverride, maxDiscount, onChange }: Props) {
+export function RetailLineDiscountMenu({
+  line, canDiscount, canFixed, canPercent, canOverride, maxDiscount, onChange,
+}: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
+  // First permitted discount mode → the sensible default the picker opens on.
+  const defaultType: RetailDiscountType =
+    canFixed ? "fixed" : canPercent ? "percent" : "override"
+
   const existing = line.discount
-  const [type,   setType]   = useState<RetailDiscountType>(existing?.type ?? "fixed")
+  const [type,   setType]   = useState<RetailDiscountType>(existing?.type ?? defaultType)
   const [value,  setValue]  = useState<string>(existing ? String(existing.value) : "")
-  const [reason, setReason] = useState<RetailDiscountReason>(existing?.reason ?? "customer")
+  // Reason is mandatory — no silent default. "" forces an explicit choice.
+  const [reason, setReason] = useState<RetailDiscountReason | "">(existing?.reason ?? "")
   const [note,   setNote]   = useState<string>(existing?.note ?? "")
   const [error,  setError]  = useState<string | null>(null)
 
   // Re-seed the form whenever a different discount arrives (e.g. reopened line).
   useEffect(() => {
     if (!open) return
-    setType(existing?.type ?? "fixed")
+    setType(existing?.type ?? defaultType)
     setValue(existing ? String(existing.value) : "")
-    setReason(existing?.reason ?? "customer")
+    setReason(existing?.reason ?? "")
     setNote(existing?.note ?? "")
     setError(null)
-  }, [open, existing])
+  }, [open, existing, defaultType])
 
   useEffect(() => {
     if (!open) return
@@ -61,7 +69,8 @@ export function RetailLineDiscountMenu({ line, canDiscount, canOverride, maxDisc
   if (!canDiscount && !canOverride) return null
 
   // Preview the result with the currently-typed values.
-  const previewLine: CartLine = { ...line, discount: value ? { type, value: Number(value) || 0, reason, note } : undefined }
+  const previewReason: RetailDiscountReason = (reason || "other") as RetailDiscountReason
+  const previewLine: CartLine = { ...line, discount: value ? { type, value: Number(value) || 0, reason: previewReason, note } : undefined }
   const finalUnit = effectiveUnitPrice(previewLine)
   const discAmt   = lineDiscountAmount(previewLine)
   const overCap   = maxDiscount > 0 && discAmt > maxDiscount
@@ -69,8 +78,12 @@ export function RetailLineDiscountMenu({ line, canDiscount, canOverride, maxDisc
   function apply() {
     const v = Number(value)
     if (!value || !isFinite(v) || v < 0) { setError("Geçerli bir değer gir"); return }
+    if (type === "fixed"    && !canFixed)    { setError("Sabit ₺ indirim yetkin yok"); return }
+    if (type === "percent"  && !canPercent)  { setError("Yüzde indirim yetkin yok"); return }
     if (type === "override" && !canOverride) { setError("Manuel fiyat yetkin yok"); return }
     if (overCap) { setError(`Limit ₺${maxDiscount.toLocaleString("tr-TR")} — indirim çok yüksek`); return }
+    // Reason is mandatory for every discount.
+    if (!reason) { setError("İndirim sebebi seç (zorunlu)"); return }
     if (reason === "other" && !note.trim()) { setError("Sebep için not gir"); return }
     onChange({ type, value: v, reason, note: note.trim() || undefined })
     setOpen(false)
@@ -109,10 +122,10 @@ export function RetailLineDiscountMenu({ line, canDiscount, canOverride, maxDisc
             </button>
           </div>
 
-          {/* Type toggle */}
+          {/* Type toggle — each mode gated by the owner's permission */}
           <div className="grid grid-cols-3 gap-1 mb-2">
-            <TypeBtn active={type === "fixed"}    onClick={() => setType("fixed")}    icon={Banknote} label="₺" disabled={!canDiscount} />
-            <TypeBtn active={type === "percent"}  onClick={() => setType("percent")}  icon={Percent}  label="%" disabled={!canDiscount} />
+            <TypeBtn active={type === "fixed"}    onClick={() => setType("fixed")}    icon={Banknote} label="₺" disabled={!canFixed} />
+            <TypeBtn active={type === "percent"}  onClick={() => setType("percent")}  icon={Percent}  label="%" disabled={!canPercent} />
             <TypeBtn active={type === "override"} onClick={() => setType("override")} icon={Tag}      label="Manuel" disabled={!canOverride} />
           </div>
 
@@ -133,13 +146,19 @@ export function RetailLineDiscountMenu({ line, canDiscount, canOverride, maxDisc
             />
           </div>
 
-          {/* Reason */}
+          {/* Reason — MANDATORY (no default; sale can't proceed without one) */}
           <select
             value={reason}
-            onChange={(e) => setReason(e.target.value as RetailDiscountReason)}
-            className="w-full px-2.5 py-2 mb-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold focus:outline-none focus:border-amber-500"
+            onChange={(e) => { setReason(e.target.value as RetailDiscountReason | ""); setError(null) }}
+            className={cn(
+              "w-full px-2.5 py-2 mb-2 rounded-lg border bg-white dark:bg-slate-800 text-xs font-semibold focus:outline-none focus:border-amber-500",
+              reason ? "border-slate-200 dark:border-slate-700" : "border-amber-400 dark:border-amber-500/50",
+            )}
           >
-            {REASON_KEYS.map((k) => <option key={k} value={k}>{RETAIL_DISCOUNT_REASON_LABELS[k]}</option>)}
+            <option value="">İndirim sebebi seç… (zorunlu)</option>
+            {RETAIL_DISCOUNT_REASON_OPTIONS.map((k) => (
+              <option key={k} value={k}>{RETAIL_DISCOUNT_REASON_LABELS[k]}</option>
+            ))}
           </select>
 
           {reason === "other" && (

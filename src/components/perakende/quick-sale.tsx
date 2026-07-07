@@ -72,6 +72,8 @@ export function QuickSale({ onSaleComplete }: QuickSaleProps = {}) {
   const isPrivileged = user?.role === "admin" || user?.role === "super_admin" || user?.role === "manager"
   const canDiscount  = isPrivileged || limits.retailDiscountEnabled
   const canOverride  = isPrivileged || limits.retailPriceOverride
+  const canFixed     = canDiscount && (isPrivileged || limits.retailAllowFixed)
+  const canPercent   = canDiscount && (isPrivileged || limits.retailAllowPercentage)
   const maxDiscount  = isPrivileged ? 0 : (limits.retailMaxDiscount || 0)
 
   function setLineDiscount(productId: string, discount: RetailLineDiscount | undefined): void {
@@ -297,6 +299,8 @@ export function QuickSale({ onSaleComplete }: QuickSaleProps = {}) {
                   <RetailLineDiscountMenu
                     line={l}
                     canDiscount={canDiscount}
+                    canFixed={canFixed}
+                    canPercent={canPercent}
                     canOverride={canOverride}
                     maxDiscount={maxDiscount}
                     onChange={(d) => setLineDiscount(l.productId, d)}
@@ -322,16 +326,22 @@ export function QuickSale({ onSaleComplete }: QuickSaleProps = {}) {
           </div>
         )}
 
-        {/* Total */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 mb-3">
+        {/* Payment summary — always reflects the real charge */}
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 mb-3 space-y-1">
           {discountTotal > 0 && (
-            <div className="flex items-baseline justify-between mb-1 text-xs">
-              <span className="text-amber-600 dark:text-amber-400 font-semibold">Perakende indirimi</span>
-              <span className="text-amber-600 dark:text-amber-400 font-bold tabular-nums">−{fmt(discountTotal)}</span>
-            </div>
+            <>
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="text-slate-500 font-semibold">Perakende Toplam</span>
+                <span className="text-slate-600 dark:text-slate-300 font-semibold tabular-nums">{fmt(total + discountTotal)}</span>
+              </div>
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="text-amber-600 dark:text-amber-400 font-semibold">Perakende İndirim</span>
+                <span className="text-amber-600 dark:text-amber-400 font-bold tabular-nums">−{fmt(discountTotal)}</span>
+              </div>
+            </>
           )}
-          <div className="flex items-baseline justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Toplam</span>
+          <div className="flex items-baseline justify-between pt-0.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{discountTotal > 0 ? "Genel Toplam" : "Toplam"}</span>
             <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">{fmt(total)}</span>
           </div>
         </div>

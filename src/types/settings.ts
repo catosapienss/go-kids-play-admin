@@ -119,6 +119,10 @@ export interface DiscountSettings {
   retailDiscountEnabled: boolean
   retailPriceOverride:   boolean
   retailMaxDiscount:     number
+  //   retailAllowPercentage — staff may apply % discounts
+  //   retailAllowFixed      — staff may apply fixed ₺ discounts
+  retailAllowPercentage: boolean
+  retailAllowFixed:      boolean
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -196,6 +200,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     retailDiscountEnabled: true,
     retailPriceOverride:   true,
     retailMaxDiscount:     0,
+    retailAllowPercentage: true,
+    retailAllowFixed:      true,
   },
 }
 

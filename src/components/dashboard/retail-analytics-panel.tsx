@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ShoppingBag, Tag, Users, Megaphone, Loader2 } from "lucide-react"
+import { ShoppingBag, Tag, Percent, Receipt, Loader2 } from "lucide-react"
 import { cn, formatTRY } from "@/lib/utils"
 import { fetchRetailDiscountBreakdown, type RetailDiscountBreakdown } from "@/lib/services/retail"
 
@@ -48,10 +48,19 @@ export function RetailAnalyticsPanel() {
         <div className="py-8 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-slate-400" /></div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Metric label="Perakende Satış"    value={formatTRY(data.totalSales)}        icon={ShoppingBag} tone="emerald" emphasis />
-          <Metric label="Perakende İndirim"  value={formatTRY(data.totalDiscount)}     icon={Tag}         tone="amber" />
-          <Metric label="Personel İndirimi"  value={formatTRY(data.staffDiscount)}     icon={Users}       tone="violet" />
-          <Metric label="Promosyon İndirimi" value={formatTRY(data.promotionDiscount)} icon={Megaphone}   tone="sky" />
+          <Metric label="Bugünkü Perakende Ciro" value={formatTRY(data.totalSales)}        icon={ShoppingBag} tone="emerald" emphasis />
+          <Metric label="Bugünkü İndirim"        value={formatTRY(data.totalDiscount)}     icon={Tag}         tone="amber" />
+          <Metric label="İndirim Oranı"          value={`%${data.discountPct.toLocaleString("tr-TR")}`} icon={Percent} tone="violet" />
+          <Metric label="İndirimli Satış"        value={`${data.discountedSales} işlem`}   icon={Receipt}     tone="sky" />
+        </div>
+      )}
+
+      {/* Secondary: category split, shown only when there are discounts. */}
+      {data && data.totalDiscount > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+          <span>Personel: <strong className="text-slate-700 dark:text-slate-200 tabular-nums">{formatTRY(data.staffDiscount)}</strong></span>
+          <span>Promosyon/Kampanya: <strong className="text-slate-700 dark:text-slate-200 tabular-nums">{formatTRY(data.promotionDiscount)}</strong></span>
+          <span>Diğer: <strong className="text-slate-700 dark:text-slate-200 tabular-nums">{formatTRY(data.otherDiscount)}</strong></span>
         </div>
       )}
     </div>
