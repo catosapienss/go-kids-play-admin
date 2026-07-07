@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { MoreVertical, Percent, Banknote, Tag, X, Check, Trash2, Lock } from "lucide-react"
+import { Percent, Banknote, Tag, X, Check, Trash2, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   RETAIL_DISCOUNT_REASON_LABELS, RETAIL_DISCOUNT_REASON_OPTIONS,
@@ -94,20 +94,23 @@ export function RetailLineDiscountMenu({
     setOpen(false)
   }
 
+  const existingDiscAmt = existing ? lineDiscountAmount(line) : 0
+
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}
-        title="Fiyat / indirim"
+        title="İndirim / fiyat düzenle"
         className={cn(
-          "w-7 h-7 rounded-lg flex items-center justify-center transition-colors",
+          "inline-flex items-center gap-1 px-2 h-7 rounded-lg border text-[11px] font-bold whitespace-nowrap transition-colors",
           existing
-            ? "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
-            : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800",
+            ? "border-amber-300 dark:border-amber-500/40 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
+            : "border-amber-200 dark:border-amber-500/25 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10",
         )}
       >
-        {existing ? <Tag className="w-3.5 h-3.5" /> : <MoreVertical className="w-3.5 h-3.5" />}
+        <Tag className="w-3 h-3" />
+        {existing ? `−₺${existingDiscAmt.toLocaleString("tr-TR")}` : "İndirim"}
       </button>
 
       {open && (
