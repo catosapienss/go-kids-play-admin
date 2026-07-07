@@ -114,14 +114,24 @@ export function RetailLineDiscountMenu({
       </button>
 
       {open && (
+        // Fixed, centered modal — escapes the cart's overflow:auto clipping so
+        // the whole form is always visible on any screen.
         <div
-          className="absolute right-0 top-full mt-1 z-50 w-64 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-3 animate-in fade-in slide-in-from-top-1 duration-150"
-          onClick={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          onClick={() => setOpen(false)}
         >
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Fiyat / İndirim</p>
-            <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
-              <X className="w-3.5 h-3.5" />
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150" />
+          <div
+            className="relative w-full max-w-xs rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-4 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+          <div className="flex items-center justify-between mb-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Fiyat / İndirim</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{line.productName}</p>
+            </div>
+            <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex-shrink-0">
+              <X className="w-4 h-4" />
             </button>
           </div>
 
@@ -207,6 +217,7 @@ export function RetailLineDiscountMenu({
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
+          </div>
           </div>
         </div>
       )}
