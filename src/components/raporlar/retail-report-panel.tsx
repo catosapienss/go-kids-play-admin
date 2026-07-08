@@ -2,29 +2,26 @@
 
 import { useEffect, useState } from "react"
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts"
-import {
-  ShoppingBag, Banknote, CreditCard, PackageCheck, ReceiptText, Tag, Loader2, Trophy,
-} from "lucide-react"
+import { ShoppingBag, Loader2 } from "lucide-react"
 import { cn, formatTRY, formatNumberTR } from "@/lib/utils"
 import { useDateRange } from "@/lib/reports/date-range-context"
 import { fetchRetailReport, type RetailReport } from "@/lib/services/retail"
 
 // ─── Reports · Retail (Perakende) ────────────────────────────────────────────
 //
-// Dedicated retail analytics for the selected date range (the global picker
-// drives daily / weekly / monthly). Shows revenue KPIs, a daily revenue trend,
-// and WHAT was sold (top products). Read-only.
+// Refined, minimal retail analytics for the selected range. One accented hero
+// figure, calm neutral stat cells, a soft daily-revenue area, and a clean
+// "what sold" list. The global date picker drives daily / weekly / monthly.
 
-function RetailTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { label: string; revenue: number; count: number } }> }) {
+function AreaTip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { label: string; revenue: number; count: number } }> }) {
   if (!active || !payload?.length) return null
   const p = payload[0].payload
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-lg text-xs">
-      <p className="font-bold text-slate-900 dark:text-white">{p.label}</p>
-      <p className="text-emerald-600 dark:text-emerald-400 font-semibold tabular-nums">{formatTRY(p.revenue)}</p>
-      <p className="text-slate-500">{p.count} satış</p>
+    <div className="rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm text-xs">
+      <p className="font-semibold text-slate-900 dark:text-white tabular-nums">{formatTRY(p.revenue)}</p>
+      <p className="text-slate-400 mt-0.5">{p.label} · {p.count} satış</p>
     </div>
   )
 }
@@ -42,126 +39,124 @@ export function RetailReportPanel() {
     return () => { cancelled = true }
   }, [range.from, range.to])
 
-  const maxRev = data ? Math.max(1, ...data.daily.map((d) => d.revenue)) : 1
+  const avgBasket = data && data.saleCount > 0 ? data.totalRevenue / data.saleCount : 0
+  const maxQty = data ? Math.max(1, ...data.topProducts.map((p) => p.qty)) : 1
 
   return (
-    <div className="space-y-5">
-      {/* KPI row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Kpi label="Perakende Ciro" value={data ? formatTRY(data.totalRevenue) : undefined} icon={ShoppingBag} tone="violet" emphasis />
-        <Kpi label="Nakit"          value={data ? formatTRY(data.cashTotal) : undefined}    icon={Banknote}    tone="emerald" />
-        <Kpi label="Kart"           value={data ? formatTRY(data.cardTotal) : undefined}    icon={CreditCard}  tone="sky" />
-        <Kpi label="Satılan Ürün"   value={data ? `${formatNumberTR(data.itemsSold)} adet` : undefined} icon={PackageCheck} tone="amber" />
-        <Kpi label="Satış Sayısı"   value={data ? `${data.saleCount} işlem` : undefined}    icon={ReceiptText} tone="slate" />
-        <Kpi label="İndirim"        value={data ? formatTRY(data.discountTotal) : undefined} icon={Tag}        tone="rose" />
-      </div>
-
-      {/* Daily revenue trend */}
-      <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Günlük Perakende Cirosu</p>
-            <p className="text-sm text-slate-700 dark:text-slate-300 mt-0.5">Seçili dönemdeki günlük satış tutarı</p>
+    <div className="space-y-6">
+      {/* Hero + secondary stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Accented hero — the one number that matters most */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white p-6 flex flex-col justify-between min-h-[168px]">
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/10" />
+          <div className="relative flex items-center justify-between">
+            <span className="text-[11px] uppercase tracking-[0.14em] font-medium text-white/70">Perakende Ciro</span>
+            <ShoppingBag className="w-4 h-4 text-white/60" />
           </div>
-          <div className="w-9 h-9 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center">
-            <ShoppingBag className="w-4 h-4" />
+          <div className="relative">
+            <p className="text-[40px] leading-none font-semibold tracking-tight tabular-nums">
+              {data ? formatTRY(data.totalRevenue) : <span className="inline-block w-40 h-9 bg-white/20 rounded-lg animate-pulse" />}
+            </p>
+            <p className="text-xs text-white/60 mt-2">
+              {data ? `${data.saleCount} satış · ${formatNumberTR(data.itemsSold)} ürün` : ""}
+            </p>
           </div>
         </div>
+
+        {/* Calm neutral stat grid */}
+        <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <Stat label="Nakit"        value={data ? formatTRY(data.cashTotal) : undefined} accent="emerald" />
+          <Stat label="Kart"         value={data ? formatTRY(data.cardTotal) : undefined} accent="sky" />
+          <Stat label="İndirim"      value={data ? formatTRY(data.discountTotal) : undefined} accent="amber" />
+          <Stat label="Satılan Ürün" value={data ? `${formatNumberTR(data.itemsSold)}` : undefined} sub="adet" />
+          <Stat label="Satış Sayısı" value={data ? `${data.saleCount}` : undefined} sub="işlem" />
+          <Stat label="Ort. Sepet"   value={data ? formatTRY(avgBasket) : undefined} />
+        </div>
+      </div>
+
+      {/* Daily revenue — soft area */}
+      <div className="rounded-3xl border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-6">
+        <div className="mb-5">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Günlük Perakende Cirosu</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Seçili dönemdeki günlük satış tutarı</p>
+        </div>
         {data === null ? (
-          <div className="h-[220px] flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+          <div className="h-[220px] flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-slate-300" /></div>
         ) : data.daily.length === 0 ? (
           <div className="h-[220px] flex items-center justify-center text-sm text-slate-400">Bu aralıkta perakende satışı yok</div>
         ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={data.daily} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-100 dark:text-slate-800" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={64} tickFormatter={(v) => formatTRY(Number(v))} />
-              <Tooltip content={<RetailTooltip />} cursor={{ fill: "rgba(139,92,246,0.08)" }} />
-              <Bar dataKey="revenue" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                {data.daily.map((d) => (
-                  <Cell key={d.date} fill={d.revenue >= maxRev * 0.66 ? "#7c3aed" : "#a78bfa"} />
-                ))}
-              </Bar>
-            </BarChart>
+          <ResponsiveContainer width="100%" height={230}>
+            <AreaChart data={data.daily} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+              <defs>
+                <linearGradient id="retailArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.28} />
+                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-100 dark:text-slate-800/70" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} dy={6} />
+              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={64} tickFormatter={(v) => formatTRY(Number(v))} />
+              <Tooltip content={<AreaTip />} cursor={{ stroke: "#c4b5fd", strokeWidth: 1 }} />
+              <Area type="monotone" dataKey="revenue" stroke="#7c3aed" strokeWidth={2.5} fill="url(#retailArea)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: "#7c3aed" }} />
+            </AreaChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      {/* What was sold — top products */}
-      <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 flex items-center justify-center">
-            <Trophy className="w-4 h-4" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white">Ne Satıldı · En Çok Satan Ürünler</h2>
-            <p className="text-[11px] text-slate-500">Seçili dönemde adet ve ciro</p>
-          </div>
+      {/* What was sold */}
+      <div className="rounded-3xl border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-6">
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Ne Satıldı</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Seçili dönemde en çok satan ürünler</p>
         </div>
         {data === null ? (
-          <div className="py-8 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-slate-400" /></div>
+          <div className="py-8 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-slate-300" /></div>
         ) : data.topProducts.length === 0 ? (
-          <p className="py-10 text-center text-sm text-slate-400">Ürün satışı yok</p>
+          <p className="py-8 text-center text-sm text-slate-400">Ürün satışı yok</p>
         ) : (
-          <table className="w-full text-sm tabular-nums">
-            <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
-              <tr className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                <th className="px-5 py-2 font-bold">Ürün</th>
-                <th className="px-5 py-2 font-bold text-right">Adet</th>
-                <th className="px-5 py-2 font-bold text-right pr-5">Ciro</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.topProducts.map((p, i) => (
-                <tr key={p.name} className="border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="px-5 py-2 text-slate-800 dark:text-slate-200 font-medium">
-                    <span className="inline-flex items-center gap-2">
-                      <span className={cn(
-                        "w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black flex-shrink-0",
-                        i === 0 ? "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-500",
-                      )}>{i + 1}</span>
-                      {p.name}
-                    </span>
-                  </td>
-                  <td className="px-5 py-2 text-right font-bold text-slate-900 dark:text-white">{formatNumberTR(p.qty)}</td>
-                  <td className="px-5 py-2 pr-5 text-right font-semibold text-emerald-600 dark:text-emerald-400">{formatTRY(p.revenue)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
+            {data.topProducts.map((p, i) => (
+              <li key={p.name} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+                <span className={cn(
+                  "w-6 text-center text-xs font-semibold tabular-nums flex-shrink-0",
+                  i === 0 ? "text-violet-600 dark:text-violet-400" : "text-slate-300 dark:text-slate-600",
+                )}>{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
+                  <div className="mt-1.5 h-1 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                    <div className="h-full rounded-full bg-violet-400/70 dark:bg-violet-500/60" style={{ width: `${Math.max(4, (p.qty / maxQty) * 100)}%` }} />
+                  </div>
+                </div>
+                <span className="text-sm font-semibold tabular-nums text-slate-500 dark:text-slate-400 w-16 text-right flex-shrink-0">{formatNumberTR(p.qty)} adet</span>
+                <span className="text-sm font-semibold tabular-nums text-slate-900 dark:text-white w-24 text-right flex-shrink-0">{formatTRY(p.revenue)}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>
   )
 }
 
-function Kpi({ label, value, icon: Icon, tone, emphasis }: {
-  label: string; value: string | undefined; icon: typeof ShoppingBag
-  tone: "violet" | "emerald" | "sky" | "amber" | "slate" | "rose"; emphasis?: boolean
+// ─── Calm neutral stat cell ──────────────────────────────────────────────────
+
+function Stat({ label, value, sub, accent }: {
+  label: string; value: string | undefined; sub?: string
+  accent?: "emerald" | "sky" | "amber"
 }) {
-  const tones: Record<typeof tone, { bg: string; fg: string }> = {
-    violet:  { bg: "bg-violet-100  dark:bg-violet-500/10",  fg: "text-violet-600  dark:text-violet-300" },
-    emerald: { bg: "bg-emerald-100 dark:bg-emerald-500/10", fg: "text-emerald-600 dark:text-emerald-300" },
-    sky:     { bg: "bg-sky-100     dark:bg-sky-500/10",     fg: "text-sky-600     dark:text-sky-300" },
-    amber:   { bg: "bg-amber-100   dark:bg-amber-500/10",   fg: "text-amber-600   dark:text-amber-300" },
-    slate:   { bg: "bg-slate-100   dark:bg-slate-800",      fg: "text-slate-600   dark:text-slate-300" },
-    rose:    { bg: "bg-rose-100    dark:bg-rose-500/10",    fg: "text-rose-600    dark:text-rose-300" },
-  }
+  const dot = accent === "emerald" ? "bg-emerald-500"
+    : accent === "sky" ? "bg-sky-500"
+    : accent === "amber" ? "bg-amber-500"
+    : null
   return (
-    <div className={cn(
-      "rounded-2xl border bg-white dark:bg-slate-900 p-3",
-      emphasis ? "border-violet-300 dark:border-violet-500/40 shadow-sm shadow-violet-500/10" : "border-slate-200 dark:border-slate-800",
-    )}>
-      <div className="flex items-center gap-2 mb-1.5">
-        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0", tones[tone].bg)}>
-          <Icon className={cn("w-3.5 h-3.5", tones[tone].fg)} />
-        </div>
-        <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 leading-tight">{label}</p>
+    <div className="rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-4 flex flex-col justify-between">
+      <div className="flex items-center gap-1.5">
+        {dot && <span className={cn("w-1.5 h-1.5 rounded-full", dot)} />}
+        <p className="text-[11px] uppercase tracking-[0.1em] text-slate-400 font-medium">{label}</p>
       </div>
-      <p className="text-lg font-black tabular-nums text-slate-900 dark:text-white">
-        {value ?? <span className="inline-block w-14 h-5 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />}
+      <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums text-slate-900 dark:text-white">
+        {value ?? <span className="inline-block w-16 h-6 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />}
+        {value && sub && <span className="text-sm font-normal text-slate-400 ml-1">{sub}</span>}
       </p>
     </div>
   )
