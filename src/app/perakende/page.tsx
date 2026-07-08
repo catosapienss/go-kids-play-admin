@@ -6,8 +6,9 @@ import { QuickSale } from "@/components/perakende/quick-sale"
 import { RetailDayPanel } from "@/components/perakende/retail-day-panel"
 import { ProductManager } from "@/components/perakende/product-manager"
 import { WastePanel } from "@/components/perakende/waste-panel"
+import { StockPanel } from "@/components/perakende/stock-panel"
 import { useAuth } from "@/contexts/auth-context"
-import { ShoppingCart, Package, PackageX } from "lucide-react"
+import { ShoppingCart, Package, PackageX, Boxes } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ─── /perakende — Retail Sales ────────────────────────────────────────────────
@@ -15,13 +16,16 @@ import { cn } from "@/lib/utils"
 // Tabs:
 //   1. Hızlı Satış  → cashier POS, everyone
 //   2. Zayiat       → record retail loss/shrinkage, everyone
-//   3. Ürünler      → product CRUD, admin-only
+//   3. Stok         → inventory + monthly count, manager-only
+//   4. Ürünler      → product CRUD, admin-only
 
-type Tab = "sale" | "waste" | "products"
+type Tab = "sale" | "waste" | "stock" | "products"
 
 export default function PerakendePage() {
   const { user } = useAuth()
   const isAdmin = user?.role === "admin" || user?.role === "super_admin"
+  // Stock is a management tool → managers + admins.
+  const isManager = isAdmin || user?.role === "manager"
   const [tab, setTab] = useState<Tab>("sale")
   // Bumped after every checkout so the day panel refreshes instantly.
   const [salesRefresh, setSalesRefresh] = useState(0)
@@ -33,6 +37,9 @@ export default function PerakendePage() {
         <div className="inline-flex items-center gap-1 p-1 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
           <TabBtn active={tab === "sale"}  onClick={() => setTab("sale")}  icon={<ShoppingCart className="w-3.5 h-3.5" />} label="Hızlı Satış" />
           <TabBtn active={tab === "waste"} onClick={() => setTab("waste")} icon={<PackageX     className="w-3.5 h-3.5" />} label="Zayiat" />
+          {isManager && (
+            <TabBtn active={tab === "stock"} onClick={() => setTab("stock")} icon={<Boxes className="w-3.5 h-3.5" />} label="Stok" />
+          )}
           {isAdmin && (
             <TabBtn active={tab === "products"} onClick={() => setTab("products")} icon={<Package className="w-3.5 h-3.5" />} label="Ürünler" />
           )}
@@ -46,6 +53,7 @@ export default function PerakendePage() {
           </>
         )}
         {tab === "waste" && <WastePanel />}
+        {tab === "stock" && isManager && <StockPanel />}
         {tab === "products" && isAdmin && (
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
             <ProductManager />
