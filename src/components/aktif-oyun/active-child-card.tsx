@@ -8,6 +8,7 @@ import { useState } from "react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ReprintLabelsButton } from "./reprint-labels-button"
 import { updateSessionChildNotes } from "@/lib/services/session.service"
+import { useMask } from "@/lib/presentation/presentation-mode"
 import { toast } from "sonner"
 
 interface ActiveChildCardProps {
@@ -87,6 +88,7 @@ export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume
 
   const avatarColor = AVATAR_COLORS[session.childName.charCodeAt(0) % AVATAR_COLORS.length]
   const [expanded, setExpanded] = useState(false)
+  const mask = useMask()
 
   // Local note state — seeded from the session, kept after save so the card
   // reflects the change immediately even if the realtime UPDATE lags.
@@ -155,10 +157,10 @@ export function ActiveChildCard({ session, onExtend, onCancel, onPause, onResume
                   {session.dailySeq}
                 </span>
               )}
-              <span className="truncate">{session.childName}</span>
+              <span className="truncate">{mask.name(session.childName)}</span>
             </p>
             <p className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">
-              {session.parentName}
+              {mask.name(session.parentName)}
             </p>
           </div>
 

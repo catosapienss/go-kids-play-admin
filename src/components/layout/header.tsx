@@ -10,6 +10,7 @@ import { NotificationBell } from "@/components/notifications/notification-bell"
 import { BranchSwitcher } from "@/components/branch/branch-switcher"
 import { LockNowButton } from "@/components/system/lock-now-button"
 import { DailyNotesButton } from "@/components/operations-log/daily-notes-button"
+import { PresentationToggle } from "./presentation-toggle"
 
 interface HeaderProps {
   title: string
@@ -76,6 +77,9 @@ export function Header({ title, subtitle }: HeaderProps) {
           <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Tema değiştir</span>
         </Button>
+
+        {/* Presentation / privacy mode — admin-only, for screenshots */}
+        <PresentationToggle />
 
         {/* Daily Operations Log — quick shift-note access from anywhere */}
         <DailyNotesButton />

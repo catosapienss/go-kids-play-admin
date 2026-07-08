@@ -2,6 +2,7 @@
 
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
+import { PresentationBanner } from "./presentation-toggle"
 import { useState } from "react"
 import { Menu, X, Baby } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -68,6 +69,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
         </div>
 
         <Header title={title} subtitle={subtitle} />
+        <PresentationBanner />
 
         <main className="flex-1 overflow-y-auto p-6">
           {children}

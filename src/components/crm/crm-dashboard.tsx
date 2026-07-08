@@ -8,6 +8,7 @@ import {
 import { cn, calendarDaysAgo } from "@/lib/utils"
 import { listCustomers, getCrmStats, type CrmTableRow, type CrmStats } from "@/lib/services/crm-dashboard.service"
 import { CustomerProfileSheet } from "./customer-profile-sheet"
+import { useMask } from "@/lib/presentation/presentation-mode"
 
 // ─── CRM Dashboard ──────────────────────────────────────────────────────────
 //
@@ -171,6 +172,7 @@ function Th({ children, className }: { children?: React.ReactNode; className?: s
 
 interface RowProps { c: CrmTableRow; onOpen: () => void }
 function CustomerRow({ c, onOpen }: RowProps) {
+  const mask = useMask()
   const hasMembership = c.tags.includes("unlimited") || c.tags.includes("membership")
   const isBirthday    = c.tags.includes("organization") || c.tags.includes("birthday")
 
@@ -189,10 +191,10 @@ function CustomerRow({ c, onOpen }: RowProps) {
         {c.firstChild ? (
           <div className="flex items-center gap-1.5 min-w-0">
             <Baby className="w-3.5 h-3.5 text-violet-500 flex-shrink-0" />
-            <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[180px]">{c.firstChild}</span>
+            <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[180px]">{mask.name(c.firstChild)}</span>
             {c.otherChildren.length > 0 && (
               <span
-                title={c.otherChildren.join(", ")}
+                title={c.otherChildren.map((n) => mask.name(n)).join(", ")}
                 className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 flex-shrink-0"
               >
                 +{c.otherChildren.length}
@@ -206,7 +208,7 @@ function CustomerRow({ c, onOpen }: RowProps) {
 
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px]">{c.fullName}</span>
+          <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px]">{mask.name(c.fullName)}</span>
           {c.isVip && <Crown className="w-3 h-3 text-amber-500 flex-shrink-0" />}
         </div>
       </td>
@@ -214,7 +216,7 @@ function CustomerRow({ c, onOpen }: RowProps) {
       <td className="px-3 py-2.5">
         <span className="inline-flex items-center gap-1 text-[12.5px] text-slate-600 dark:text-slate-300 tabular-nums">
           <Phone className="w-3 h-3 text-slate-400" />
-          {fmtPhone(c.phone)}
+          {mask.enabled ? mask.phone(c.phone) : fmtPhone(c.phone)}
         </span>
       </td>
 
@@ -232,7 +234,7 @@ function CustomerRow({ c, onOpen }: RowProps) {
 
       <td className="px-3 py-2.5 text-right tabular-nums">
         <span className="text-[13px] font-bold text-emerald-600 dark:text-emerald-400">
-          ₺{Math.round(c.totalSpent).toLocaleString("tr-TR")}
+          {mask.enabled ? mask.money(c.totalSpent) : `₺${Math.round(c.totalSpent).toLocaleString("tr-TR")}`}
         </span>
       </td>
 

@@ -14,6 +14,7 @@ import { ErrorBoundary } from "@/components/system/error-boundary"
 import { OfflineBanner } from "@/components/system/offline-banner"
 import { QuickActionsLauncher } from "@/components/system/quick-actions-launcher"
 import { DemoModeProvider } from "@/lib/demo/demo-mode"
+import { PresentationModeProvider } from "@/lib/presentation/presentation-mode"
 import { SettingsProvider } from "@/lib/settings/settings-store"
 import { Toaster } from "sonner"
 import { PwaInstallPrompt } from "@/components/system/pwa-install-prompt"
@@ -67,6 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <BranchProvider>
               <SettingsProvider>
               <DemoModeProvider>
+              <PresentationModeProvider>
               <NotificationStoreProvider>
                 <SessionStoreProvider>
                   {children}
@@ -75,6 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <LockScreen />
                 </SessionStoreProvider>
               </NotificationStoreProvider>
+              </PresentationModeProvider>
               </DemoModeProvider>
               </SettingsProvider>
             </BranchProvider>
