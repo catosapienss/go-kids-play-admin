@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/client"
+import { recordAudit } from "@/lib/reliability/audit-log"
 import {
   cartTotal, cartDiscountTotal, effectiveUnitPrice, lineTotal, lineDiscountAmount,
-  retailDiscountCategory,
+  retailDiscountCategory, RETAIL_DISCOUNT_REASON_LABELS,
 } from "@/types/retail"
 import type {
   CartLine, DailyRevenueBreakdown, PaymentMethod, Product,
@@ -142,6 +143,31 @@ export async function checkoutSale(input: {
     itemsErr = (await supabase.from("retail_sale_items").insert(legacyItems)).error
   }
   if (itemsErr) throw itemsErr
+
+  // Audit — a manager-readable retail sale record (products, tender, discount).
+  const itemsLabel = input.cart
+    .map((l) => (l.quantity > 1 ? `${l.productName} × ${l.quantity}` : l.productName))
+    .join(" · ")
+  const discountReasons = Array.from(new Set(
+    input.cart
+      .filter((l) => l.discount)
+      .map((l) => RETAIL_DISCOUNT_REASON_LABELS[l.discount!.reason] ?? l.discount!.reason),
+  ))
+  void recordAudit({
+    action: "retail.sale",
+    severity: "info",
+    entityType: "retail_sale",
+    entityId: saleId,
+    meta: {
+      items:           itemsLabel,
+      total,
+      cash:            input.cashAmount,
+      card:            input.cardAmount,
+      method:          input.paymentMethod,
+      discountTotal,
+      discountReasons: discountReasons.length > 0 ? discountReasons : null,
+    },
+  })
 
   return { saleId, total }
 }

@@ -23,27 +23,68 @@ interface AuditRow {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  "cash_register.close":  "Kasa Kapanışı",
-  "staff.day.closing":    "Personel Gün Sonu",
-  "session.start":        "Oturum Başlatma",
-  "session.create":       "Oturum Açılışı",
-  "session.end":          "Oturum Bitiş",
-  "session.extend":       "Süre Uzatma",
-  "payment.create":       "Ödeme",
-  "payment.refund":       "İade",
-  "membership.activate":  "Üyelik Aktivasyon",
-  "membership.cancel":    "Üyelik İptal",
-  "customer.create":      "Müşteri Kaydı",
-  "hizli-kayit.cancel":   "Kayıt İptali (Hızlı Kayıt)",
-  "discount.apply":       "İndirim Uygulandı",
-  "user.switch":          "Kullanıcı Değişimi",
-  "user.switch.fail":     "Hatalı PIN Denemesi",
-  "customer.tag.add":     "Müşteri Etiketi Eklendi",
-  "customer.tag.remove":  "Müşteri Etiketi Kaldırıldı",
+  "cash_register.close":     "Kasa Kapanışı",
+  "staff.day.closing":       "Personel Gün Sonu",
+  "session.start":           "Oturum Başlatma",
+  "session.create":          "Oturum Açılışı",
+  "session.end":             "Oturum Bitiş",
+  "session.extend":          "Süre Uzatma",
+  "session.convert_unlimited":"Sınırsıza Geçiş",
+  "payment.create":          "Ödeme Alındı",
+  "payment.refund":          "İade",
+  "refund.cancel":           "İptal & İade",
+  "membership.activate":     "Üyelik Aktivasyon",
+  "membership.cancel":       "Üyelik İptal",
+  "customer.create":         "Müşteri Kaydı",
+  "hizli-kayit.cancel":      "Kayıt İptali (Hızlı Kayıt)",
+  "discount.apply":          "İndirim Uygulandı",
+  "retail.sale":             "Perakende Satış",
+  "wallet.load":             "Cüzdan Yükleme",
+  "wallet.deduct":           "Cüzdan Kullanımı",
+  "child.note.update":       "Çocuk Notu Güncellendi",
+  "ops_note.create":         "Vardiya Notu Eklendi",
+  "ops_note.delete":         "Vardiya Notu Silindi",
+  "user.switch":             "Kullanıcı Değişimi",
+  "user.switch.fail":        "Hatalı PIN Denemesi",
+  "customer.tag.add":        "Müşteri Etiketi Eklendi",
+  "customer.tag.remove":     "Müşteri Etiketi Kaldırıldı",
 }
 
 function actionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action
+}
+
+// Human labels for discount reasons (play + retail) so managers read the WHY,
+// not a raw enum key.
+const REASON_LABELS: Record<string, string> = {
+  // play/session discount reasons
+  customer_loyalty:  "Müşteri Sadakati",
+  sibling_discount:  "Kardeş İndirimi",
+  birthday_discount: "Doğum Günü İndirimi",
+  manager_approval:  "Yönetici Onayı",
+  special_campaign:  "Özel Kampanya",
+  // retail discount reasons
+  staff:             "Personel İndirimi",
+  vip:               "VIP Müşteri",
+  campaign:          "Kampanya",
+  promotion:         "Promosyon",
+  damaged:           "Hasarlı Paket",
+  loyalty:           "Sadakat İndirimi",
+  customer:          "Müşteri İndirimi",
+  manual:            "Manuel Düzenleme",
+  other:             "Diğer",
+}
+function reasonLabel(reason: string | null): string | null {
+  if (!reason) return null
+  return REASON_LABELS[reason] ?? reason
+}
+
+const METHOD_LABELS: Record<string, string> = {
+  cash: "Nakit", card: "Kart", wallet: "Cüzdan", free: "Ücretsiz", split: "Karma",
+}
+function methodLabel(m: string | null): string | null {
+  if (!m) return null
+  return METHOD_LABELS[m] ?? m
 }
 
 // ─── Meta value helpers ─────────────────────────────────────────────────────
@@ -137,13 +178,66 @@ function MetaDetail({ meta, action }: { meta: Record<string, unknown>; action: s
     const child  = str(meta.childName) ?? str(meta.child_name)
     const parent = str(meta.parentName) ?? str(meta.parent_name)
     const staff  = str(meta.staffName) ?? str(meta.staff_name)
-    const dur    = Number(meta.duration_minutes ?? meta.durationMinutes ?? 0)
+    // The recorder stores `durationMin` as the number of minutes OR the string
+    // "unlimited". Read that FIRST (the old code only looked at duration_minutes
+    // and so every row fell through to 0 → "Sınırsız", even 60-min sessions).
+    const rawDur = meta.durationMin ?? meta.duration_minutes ?? meta.durationMinutes
+    const isUnlimited = rawDur === "unlimited" || rawDur === 0 || rawDur === "0"
+    const durNum = Number(rawDur)
     return (
       <span className="text-[12px] text-slate-500 dark:text-slate-400">
         {child  && <Row label="Çocuk" value={child} />}
         {parent && <Row label="Veli"  value={parent} />}
-        {dur > 0 ? <Row label="Süre" value={`${dur} dk`} /> : dur === 0 ? <Row label="Süre" value="Sınırsız" /> : null}
+        {isUnlimited
+          ? <Row label="Süre" value="Sınırsız" tone="text-fuchsia-600" />
+          : isFinite(durNum) && durNum > 0
+            ? <Row label="Süre" value={`${durNum} dk`} />
+            : null}
         {staff  && <Row label="Personel" value={staff} tone="text-violet-600" />}
+      </span>
+    )
+  }
+
+  // ── Süre uzatma / Sınırsıza geçiş ─────────────────────────────────────
+  if (action === "session.extend" || action === "session.convert_unlimited") {
+    const minutesRaw = meta.minutes
+    const amount = Number(meta.amount ?? 0)
+    const method = methodLabel(str(meta.method))
+    const isUnlimited =
+      action === "session.convert_unlimited" ||
+      minutesRaw == null || Number(minutesRaw) >= 9999
+    return (
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        <Row
+          label="İşlem"
+          value={isUnlimited ? "Sınırsız pakete geçildi" : `+${Number(minutesRaw)} dk eklendi`}
+          tone="text-emerald-600"
+        />
+        {amount > 0 && <Row label="Tutar" value={tl(amount)} tone="text-amber-600" />}
+        {method && <Row label="Ödeme" value={method} />}
+        {amount === 0 && <Row label="Ödeme" value="Ücretsiz" />}
+      </span>
+    )
+  }
+
+  // ── Perakende satış ───────────────────────────────────────────────────
+  if (action === "retail.sale") {
+    const items   = str(meta.items)
+    const total   = Number(meta.total ?? 0)
+    const cash    = Number(meta.cash ?? 0)
+    const card    = Number(meta.card ?? 0)
+    const disc    = Number(meta.discountTotal ?? 0)
+    const reasons = Array.isArray(meta.discountReasons)
+      ? (meta.discountReasons as string[]).map((r) => reasonLabel(r) ?? r)
+      : []
+    return (
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        {items && <Row label="Ürünler" value={items} />}
+        {cash > 0 && <Row label="Nakit" value={tl(cash)} tone="text-emerald-600" />}
+        {card > 0 && <Row label="Kart"  value={tl(card)} tone="text-blue-600" />}
+        <Row label="Toplam" value={tl(total)} tone="text-slate-900 dark:text-white" />
+        {disc > 0 && <Row label="İndirim" value={`−${tl(disc)}`} tone="text-amber-600" />}
+        {reasons.length > 0 && <Row label="İndirim Sebebi" value={reasons.join(", ")} tone="text-amber-600" />}
       </span>
     )
   }
@@ -160,20 +254,17 @@ function MetaDetail({ meta, action }: { meta: Record<string, unknown>; action: s
     )
   }
 
-  // ── İndirim uygulandı ─────────────────────────────────────────────────
+  // ── İndirim uygulandı (oyun/seans) ────────────────────────────────────
   if (action === "discount.apply") {
     const type   = str(meta.type)
     const value  = Number(meta.value  ?? 0)
     const amount = Number(meta.amount ?? 0)
-    const reason = str(meta.reason)
+    const reason = reasonLabel(str(meta.reason))
     return (
       <span className="text-[12px] text-slate-500 dark:text-slate-400">
-        <Row
-          label="Oran"
-          value={type === "percent" ? `%${value}` : tl(value)}
-        />
-        <Row label="Tutar" value={tl(amount)} tone="text-amber-600" />
-        {reason && <Row label="Sebep" value={reason} />}
+        <Row label={type === "percent" ? "Oran" : "İndirim"} value={type === "percent" ? `%${value}` : tl(value)} />
+        <Row label="Tutar" value={`−${tl(amount)}`} tone="text-amber-600" />
+        {reason && <Row label="Sebep" value={reason} tone="text-amber-600" />}
       </span>
     )
   }
