@@ -39,6 +39,8 @@ const ACTION_LABELS: Record<string, string> = {
   "hizli-kayit.cancel":      "Kayıt İptali (Hızlı Kayıt)",
   "discount.apply":          "İndirim Uygulandı",
   "retail.sale":             "Perakende Satış",
+  "retail.waste":            "Zayiat Kaydı",
+  "retail.waste.delete":     "Zayiat Silindi",
   "wallet.load":             "Cüzdan Yükleme",
   "wallet.deduct":           "Cüzdan Kullanımı",
   "child.note.update":       "Çocuk Notu Güncellendi",
@@ -238,6 +240,23 @@ function MetaDetail({ meta, action }: { meta: Record<string, unknown>; action: s
         <Row label="Toplam" value={tl(total)} tone="text-slate-900 dark:text-white" />
         {disc > 0 && <Row label="İndirim" value={`−${tl(disc)}`} tone="text-amber-600" />}
         {reasons.length > 0 && <Row label="İndirim Sebebi" value={reasons.join(", ")} tone="text-amber-600" />}
+      </span>
+    )
+  }
+
+  // ── Zayiat (perakende fire/kayıp) ─────────────────────────────────────
+  if (action === "retail.waste") {
+    const product = str(meta.product)
+    const quantity = Number(meta.quantity ?? 0)
+    const cost = Number(meta.total_cost ?? 0)
+    const reason = str(meta.reason)
+    const note = str(meta.note)
+    return (
+      <span className="text-[12px] text-slate-500 dark:text-slate-400">
+        {product && <Row label="Ürün" value={`${product}${quantity > 0 ? ` × ${quantity}` : ""}`} />}
+        {reason && <Row label="Sebep" value={reason} tone="text-rose-600" />}
+        {cost > 0 && <Row label="Kayıp" value={`−${tl(cost)}`} tone="text-rose-600" />}
+        {note && <Row label="Not" value={note} />}
       </span>
     )
   }

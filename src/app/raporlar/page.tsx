@@ -22,6 +22,7 @@ import { DiscountsPanel } from "@/components/raporlar/discounts-panel"
 import { RetailDiscountsPanel } from "@/components/raporlar/retail-discounts-panel"
 import { DailyNotesReportPanel } from "@/components/raporlar/daily-notes-report-panel"
 import { RetailReportPanel } from "@/components/raporlar/retail-report-panel"
+import { WasteReportPanel } from "@/components/raporlar/waste-report-panel"
 
 // ─── /raporlar — Advanced Reporting & Business Insights ──────────────────────
 //
@@ -113,6 +114,7 @@ export default function RaporlarPage() {
           {tab === "retail" && (
             <div className="space-y-5">
               <RetailReportPanel />
+              <WasteReportPanel />
               <RetailDiscountsPanel limit={100} />
             </div>
           )}

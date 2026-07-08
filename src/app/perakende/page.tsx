@@ -5,19 +5,19 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { QuickSale } from "@/components/perakende/quick-sale"
 import { RetailDayPanel } from "@/components/perakende/retail-day-panel"
 import { ProductManager } from "@/components/perakende/product-manager"
+import { WastePanel } from "@/components/perakende/waste-panel"
 import { useAuth } from "@/contexts/auth-context"
-import { ShoppingCart, Package } from "lucide-react"
+import { ShoppingCart, Package, PackageX } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ─── /perakende — Retail Sales ────────────────────────────────────────────────
 //
-// Single page with two tabs:
-//   1. Hızlı Satış  → cashier POS, available to every signed-in user.
-//   2. Ürünler      → product CRUD, admin-only.
-//
-// Non-admins only see the Hızlı Satış tab.
+// Tabs:
+//   1. Hızlı Satış  → cashier POS, everyone
+//   2. Zayiat       → record retail loss/shrinkage, everyone
+//   3. Ürünler      → product CRUD, admin-only
 
-type Tab = "sale" | "products"
+type Tab = "sale" | "waste" | "products"
 
 export default function PerakendePage() {
   const { user } = useAuth()
@@ -27,15 +27,16 @@ export default function PerakendePage() {
   const [salesRefresh, setSalesRefresh] = useState(0)
 
   return (
-    <MainLayout title="Perakende Satış" subtitle="Hızlı kasa · ürün yönetimi">
+    <MainLayout title="Perakende Satış" subtitle="Hızlı kasa · zayiat · ürün yönetimi">
       <div className="space-y-4">
-        {/* Tab nav (admin only — others go straight to QuickSale) */}
-        {isAdmin && (
-          <div className="inline-flex items-center gap-1 p-1 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <TabBtn active={tab === "sale"}     onClick={() => setTab("sale")}     icon={<ShoppingCart className="w-3.5 h-3.5" />} label="Hızlı Satış" />
-            <TabBtn active={tab === "products"} onClick={() => setTab("products")} icon={<Package      className="w-3.5 h-3.5" />} label="Ürünler" />
-          </div>
-        )}
+        {/* Tab nav — Hızlı Satış & Zayiat for everyone, Ürünler admin-only */}
+        <div className="inline-flex items-center gap-1 p-1 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <TabBtn active={tab === "sale"}  onClick={() => setTab("sale")}  icon={<ShoppingCart className="w-3.5 h-3.5" />} label="Hızlı Satış" />
+          <TabBtn active={tab === "waste"} onClick={() => setTab("waste")} icon={<PackageX     className="w-3.5 h-3.5" />} label="Zayiat" />
+          {isAdmin && (
+            <TabBtn active={tab === "products"} onClick={() => setTab("products")} icon={<Package className="w-3.5 h-3.5" />} label="Ürünler" />
+          )}
+        </div>
 
         {tab === "sale" && (
           <>
@@ -44,6 +45,7 @@ export default function PerakendePage() {
             <QuickSale onSaleComplete={() => setSalesRefresh((k) => k + 1)} />
           </>
         )}
+        {tab === "waste" && <WastePanel />}
         {tab === "products" && isAdmin && (
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
             <ProductManager />
