@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import {
-  LayoutDashboard, TrendingUp, Activity, Users, Cake, ShieldCheck,
+  LayoutDashboard, TrendingUp, Activity, Users, Cake, ShieldCheck, ShoppingBag,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MainLayout } from "@/components/layout/main-layout"
@@ -21,6 +21,7 @@ import { RecentTransactionsPanel } from "@/components/raporlar/recent-transactio
 import { DiscountsPanel } from "@/components/raporlar/discounts-panel"
 import { RetailDiscountsPanel } from "@/components/raporlar/retail-discounts-panel"
 import { DailyNotesReportPanel } from "@/components/raporlar/daily-notes-report-panel"
+import { RetailReportPanel } from "@/components/raporlar/retail-report-panel"
 
 // ─── /raporlar — Advanced Reporting & Business Insights ──────────────────────
 //
@@ -34,11 +35,12 @@ import { DailyNotesReportPanel } from "@/components/raporlar/daily-notes-report-
 //
 // All panels accept range from `useDateRange()` so the picker rules the page.
 
-type Tab = "overview" | "revenue" | "customer" | "ops"
+type Tab = "overview" | "revenue" | "retail" | "customer" | "ops"
 
 const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Genel Bakış",  icon: LayoutDashboard },
   { id: "revenue",  label: "Gelir",        icon: TrendingUp },
+  { id: "retail",   label: "Perakende",    icon: ShoppingBag },
   { id: "customer", label: "Müşteri",      icon: Users },
   { id: "ops",      label: "Operasyon",    icon: Activity },
 ]
@@ -105,6 +107,13 @@ export default function RaporlarPage() {
               <RetailDiscountsPanel limit={100} />
               <PeakHoursHeatmap />
               <DayEndPanel />
+            </div>
+          )}
+
+          {tab === "retail" && (
+            <div className="space-y-5">
+              <RetailReportPanel />
+              <RetailDiscountsPanel limit={100} />
             </div>
           )}
 

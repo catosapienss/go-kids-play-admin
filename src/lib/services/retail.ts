@@ -254,6 +254,84 @@ export function summariseRetailDay(rows: RetailSaleListRow[]): RetailDayStats {
   )
 }
 
+// ─── Retail report (date-range: daily trend + top products) ─────────────────
+
+export interface RetailReportDay { date: string; label: string; revenue: number; count: number }
+export interface RetailReportProduct { name: string; qty: number; revenue: number }
+
+export interface RetailReport {
+  totalRevenue: number
+  cashTotal:    number
+  cardTotal:    number
+  itemsSold:    number
+  saleCount:    number
+  discountTotal: number
+  daily:        RetailReportDay[]
+  topProducts:  RetailReportProduct[]
+}
+
+/** Full retail report for a date range — powers the Reports "Perakende" tab.
+ *  Read-only; tolerant of the pre-021 schema (discounts read as 0). */
+export async function fetchRetailReport(fromIso: string, toIso: string): Promise<RetailReport> {
+  const empty: RetailReport = {
+    totalRevenue: 0, cashTotal: 0, cardTotal: 0, itemsSold: 0, saleCount: 0,
+    discountTotal: 0, daily: [], topProducts: [],
+  }
+  try {
+    const supabase = createClient()
+    const { data: sales, error } = await supabase
+      .from("retail_sales")
+      .select("*")
+      .gte("sold_at", fromIso)
+      .lte("sold_at", toIso)
+      .order("sold_at", { ascending: true })
+      .limit(2000)
+    if (error) throw error
+    const live = (sales ?? []).filter((s) => !(s as { voided?: boolean }).voided)
+    if (live.length === 0) return empty
+
+    const out: RetailReport = { ...empty, saleCount: live.length }
+    const pad = (n: number) => (n < 10 ? "0" + n : String(n))
+    const dayMap = new Map<string, RetailReportDay>()
+
+    for (const s of live as Array<Record<string, unknown>>) {
+      const total = Number(s.total_amount ?? 0)
+      out.totalRevenue += total
+      out.cashTotal    += Number(s.cash_amount ?? 0)
+      out.cardTotal    += Number(s.card_amount ?? 0)
+      out.discountTotal += Number(s.discount_total ?? 0)
+      const d = new Date(s.sold_at as string)
+      const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      const label = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`
+      const prev = dayMap.get(key)
+      if (prev) { prev.revenue += total; prev.count += 1 }
+      else dayMap.set(key, { date: key, label, revenue: total, count: 1 })
+    }
+    out.daily = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date))
+
+    // Line items → items sold + top products (what was sold).
+    const ids = live.map((s) => s.id as string)
+    const { data: items } = await supabase
+      .from("retail_sale_items")
+      .select("product_name, quantity, line_total")
+      .in("sale_id", ids)
+    const prodMap = new Map<string, RetailReportProduct>()
+    for (const it of (items ?? []) as Array<Record<string, unknown>>) {
+      const qty = Number(it.quantity ?? 0)
+      const rev = Number(it.line_total ?? 0)
+      const name = ((it.product_name as string) ?? "Ürün").trim() || "Ürün"
+      out.itemsSold += qty
+      const prev = prodMap.get(name)
+      if (prev) { prev.qty += qty; prev.revenue += rev }
+      else prodMap.set(name, { name, qty, revenue: rev })
+    }
+    out.topProducts = Array.from(prodMap.values()).sort((a, b) => b.qty - a.qty).slice(0, 12)
+    return out
+  } catch {
+    return empty
+  }
+}
+
 // ─── Retail discount analytics (dashboard + reports) ─────────────────────────
 
 export interface RetailDiscountBreakdown {
