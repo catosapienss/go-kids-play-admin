@@ -1,11 +1,14 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 import {
   Banknote, CreditCard, Sigma, PackageCheck, ReceiptText, Loader2, AlertCircle, Tag,
+  Ban, TriangleAlert,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { listTodayRetailSales, summariseRetailDay } from "@/lib/services/retail"
+import { listTodayRetailSales, summariseRetailDay, voidSale } from "@/lib/services/retail"
+import { useAuth } from "@/contexts/auth-context"
 import type { RetailSaleListRow } from "@/types/retail"
 
 // ─── Retail Day Panel — /perakende finance summary + sales feed ──────────────
@@ -27,8 +30,12 @@ function fmtHM(iso: string): string {
 }
 
 export function RetailDayPanel({ refreshKey = 0 }: { refreshKey?: number }) {
+  const { user } = useAuth()
+  const isManager = user?.role === "manager" || user?.role === "admin" || user?.role === "super_admin"
   const [rows, setRows]   = useState<RetailSaleListRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [localRefresh, setLocalRefresh] = useState(0)
+  const [voidingId, setVoidingId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -37,7 +44,23 @@ export function RetailDayPanel({ refreshKey = 0 }: { refreshKey?: number }) {
       .then((r) => { if (!cancelled) setRows(r) })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Yüklenemedi") })
     return () => { cancelled = true }
-  }, [refreshKey])
+  }, [refreshKey, localRefresh])
+
+  const handleVoid = useCallback(async (r: RetailSaleListRow) => {
+    const label = r.itemCount > 0 ? r.itemsLabel : "ürünsüz (hatalı) satış"
+    if (!window.confirm(`Bu satışı iptal et?\n\n${fmtHM(r.soldAt)} · ${label} · ${fmt(r.totalAmount)}\n\nTutar toplamlardan düşülecek ve (varsa) stok geri yüklenecek.`)) return
+    const reason = window.prompt("İptal sebebi (opsiyonel):", r.itemCount === 0 ? "Hatalı/ürünsüz kayıt" : "") ?? undefined
+    setVoidingId(r.id)
+    try {
+      await voidSale(r.id, reason)
+      toast.success("Satış iptal edildi")
+      setLocalRefresh((k) => k + 1)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "İptal edilemedi")
+    } finally {
+      setVoidingId(null)
+    }
+  }, [])
 
   const stats = useMemo(() => summariseRetailDay(rows ?? []), [rows])
 
@@ -115,16 +138,28 @@ export function RetailDayPanel({ refreshKey = 0 }: { refreshKey?: number }) {
                   <th className="px-4 py-2 font-bold">Ürünler</th>
                   <th className="px-4 py-2 font-bold">Ödeme</th>
                   <th className="px-4 py-2 font-bold text-right pr-5">Tutar</th>
+                  {isManager && <th className="px-2 py-2 font-bold text-right pr-4">İşlem</th>}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                {rows.map((r) => {
+                  const phantom = r.itemCount === 0
+                  return (
+                  <tr key={r.id} className={cn(
+                    "border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors",
+                    phantom && "bg-amber-50/60 dark:bg-amber-500/[0.06]",
+                  )}>
                     <td className="px-4 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap text-[12.5px]">
                       {fmtHM(r.soldAt)}
                     </td>
-                    <td className="px-4 py-2 text-slate-800 dark:text-slate-200 truncate max-w-[320px]" title={r.itemsLabel}>
-                      {r.itemsLabel}
+                    <td className="px-4 py-2 text-slate-800 dark:text-slate-200 max-w-[320px]">
+                      {phantom ? (
+                        <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-semibold">
+                          <TriangleAlert className="w-3.5 h-3.5" /> Ürün yok — hatalı kayıt
+                        </span>
+                      ) : (
+                        <span className="truncate block" title={r.itemsLabel}>{r.itemsLabel}</span>
+                      )}
                     </td>
                     <td className="px-4 py-2">
                       {r.paymentMethod === "split" ? (
@@ -141,8 +176,23 @@ export function RetailDayPanel({ refreshKey = 0 }: { refreshKey?: number }) {
                     <td className="px-4 py-2 pr-5 text-right font-bold text-slate-900 dark:text-white">
                       {fmt(r.totalAmount)}
                     </td>
+                    {isManager && (
+                      <td className="px-2 py-2 pr-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleVoid(r)}
+                          disabled={voidingId === r.id}
+                          title="Satışı iptal et (yönetici)"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-rose-600 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-500/15 disabled:opacity-50 transition-colors"
+                        >
+                          {voidingId === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Ban className="w-3 h-3" />}
+                          İptal
+                        </button>
+                      </td>
+                    )}
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

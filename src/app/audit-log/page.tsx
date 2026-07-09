@@ -39,6 +39,7 @@ const ACTION_LABELS: Record<string, string> = {
   "hizli-kayit.cancel":      "Kayıt İptali (Hızlı Kayıt)",
   "discount.apply":          "İndirim Uygulandı",
   "retail.sale":             "Perakende Satış",
+  "retail.void":             "Satış İptali",
   "retail.waste":            "Zayiat Kaydı",
   "retail.waste.delete":     "Zayiat Silindi",
   "wallet.load":             "Cüzdan Yükleme",

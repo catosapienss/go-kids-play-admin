@@ -86,34 +86,12 @@ export async function checkoutSale(input: {
   const total         = cartTotal(input.cart)
   const discountTotal = cartDiscountTotal(input.cart)
 
-  // 1. Header row. `discount_total` only sent when the schema has it (migration
-  //    021); we retry without it on a missing-column error so checkout never
-  //    breaks during the deploy window.
-  const headerBase = {
-    cashier_id:     input.cashierId,
-    payment_method: input.paymentMethod,
-    total_amount:   total,
-    cash_amount:    input.cashAmount,
-    card_amount:    input.cardAmount,
-    notes:          input.notes ?? null,
-    parent_id:      input.parentId ?? null,
-  }
-  let saleRes = await supabase
-    .from("retail_sales")
-    .insert({ ...headerBase, discount_total: discountTotal })
-    .select("id")
-    .single()
-  if (saleRes.error && isMissingColumn(saleRes.error, "discount_total")) {
-    saleRes = await supabase.from("retail_sales").insert(headerBase).select("id").single()
-  }
-  if (saleRes.error || !saleRes.data) throw saleRes.error ?? new Error("Sale insert failed")
-  const saleId = saleRes.data.id as string
+  if (input.cart.length === 0) throw new Error("Sepet boş")
 
-  // 2. Line items — store original + effective price + discount metadata.
+  // Line items — store original + effective price + discount metadata.
   const richItems = input.cart.map((l) => {
     const finalUnit = effectiveUnitPrice(l)
     return {
-      sale_id:             saleId,
       product_id:          l.productId,
       product_name:        l.productName,
       quantity:            l.quantity,
@@ -129,20 +107,31 @@ export async function checkoutSale(input: {
       applied_by:          l.discount ? input.cashierId : null,
     }
   })
-  let itemsErr = (await supabase.from("retail_sale_items").insert(richItems)).error
-  if (itemsErr && isMissingColumn(itemsErr, "original_unit_price")) {
-    // Pre-migration fallback — insert the legacy shape (effective prices).
-    const legacyItems = input.cart.map((l) => ({
-      sale_id:      saleId,
-      product_id:   l.productId,
-      product_name: l.productName,
-      quantity:     l.quantity,
-      unit_price:   effectiveUnitPrice(l),
-      line_total:   lineTotal(l),
-    }))
-    itemsErr = (await supabase.from("retail_sale_items").insert(legacyItems)).error
+
+  // ── Atomic path (migration 029): header + items in ONE transaction, so a
+  //    failed items insert can never leave a phantom header with 0 products
+  //    (the old bug that inflated totals and caused a cash surplus). Falls back
+  //    to the legacy two-step insert only if the RPC isn't deployed yet.
+  const rpcRes = await supabase.rpc("checkout_retail_sale", {
+    p_cashier_id:     input.cashierId,
+    p_payment_method: input.paymentMethod,
+    p_total:          total,
+    p_cash:           input.cashAmount,
+    p_card:           input.cardAmount,
+    p_discount_total: discountTotal,
+    p_notes:          input.notes ?? null,
+    p_parent_id:      input.parentId ?? null,
+    p_items:          richItems,
+  })
+
+  let saleId: string
+  if (rpcRes.error && isMissingFunction(rpcRes.error, "checkout_retail_sale")) {
+    saleId = await legacyCheckout(supabase, { ...input, total, discountTotal, richItems })
+  } else if (rpcRes.error || !rpcRes.data) {
+    throw rpcRes.error ?? new Error("Satış kaydedilemedi")
+  } else {
+    saleId = rpcRes.data as string
   }
-  if (itemsErr) throw itemsErr
 
   // Audit — a manager-readable retail sale record (products, tender, discount).
   const itemsLabel = input.cart
@@ -176,6 +165,86 @@ export async function checkoutSale(input: {
 function isMissingColumn(err: { message?: string } | null, column: string): boolean {
   const msg = err?.message ?? ""
   return msg.includes(column) && (msg.includes("column") || msg.includes("schema cache"))
+}
+
+/** True when the RPC isn't deployed yet (PostgREST can't find the function). */
+function isMissingFunction(err: { code?: string; message?: string } | null, fn: string): boolean {
+  if (!err) return false
+  if (err.code === "PGRST202") return true
+  const msg = err.message ?? ""
+  return msg.includes(fn) && (msg.includes("function") || msg.includes("schema cache"))
+}
+
+/** Legacy two-step insert (header → items). Only used if migration 029's
+ *  atomic RPC isn't available. Returns the new sale id. */
+async function legacyCheckout(
+  supabase: ReturnType<typeof createClient>,
+  ctx: {
+    cashierId: string; paymentMethod: PaymentMethod; cashAmount: number; cardAmount: number
+    notes?: string; parentId?: string; total: number; discountTotal: number
+    richItems: Array<Record<string, unknown>>
+  },
+): Promise<string> {
+  const headerBase = {
+    cashier_id:     ctx.cashierId,
+    payment_method: ctx.paymentMethod,
+    total_amount:   ctx.total,
+    cash_amount:    ctx.cashAmount,
+    card_amount:    ctx.cardAmount,
+    notes:          ctx.notes ?? null,
+    parent_id:      ctx.parentId ?? null,
+  }
+  let saleRes = await supabase
+    .from("retail_sales")
+    .insert({ ...headerBase, discount_total: ctx.discountTotal })
+    .select("id")
+    .single()
+  if (saleRes.error && isMissingColumn(saleRes.error, "discount_total")) {
+    saleRes = await supabase.from("retail_sales").insert(headerBase).select("id").single()
+  }
+  if (saleRes.error || !saleRes.data) throw saleRes.error ?? new Error("Sale insert failed")
+  const saleId = saleRes.data.id as string
+
+  const items = ctx.richItems.map((it) => ({ ...it, sale_id: saleId }))
+  let itemsErr = (await supabase.from("retail_sale_items").insert(items)).error
+  if (itemsErr && isMissingColumn(itemsErr, "original_unit_price")) {
+    const legacyItems = ctx.richItems.map((it) => ({
+      sale_id:      saleId,
+      product_id:   it.product_id,
+      product_name: it.product_name,
+      quantity:     it.quantity,
+      unit_price:   it.unit_price,
+      line_total:   it.line_total,
+    }))
+    itemsErr = (await supabase.from("retail_sale_items").insert(legacyItems)).error
+  }
+  if (itemsErr) {
+    // Compensate: drop the orphan header so it never becomes a phantom sale.
+    await supabase.from("retail_sales").delete().eq("id", saleId)
+    throw itemsErr
+  }
+  return saleId
+}
+
+/** Manager-only: void (cancel) a retail sale. Removes it from every total and
+ *  restocks its items. Server enforces the manager role. */
+export async function voidSale(saleId: string, reason?: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.rpc("void_retail_sale", {
+    p_sale_id: saleId,
+    p_reason:  reason ?? null,
+  })
+  if (error) {
+    if (error.message?.includes("not_authorized")) throw new Error("Bu işlem için yönetici yetkisi gerekli")
+    throw error
+  }
+  void recordAudit({
+    action: "retail.void",
+    severity: "warning",
+    entityType: "retail_sale",
+    entityId: saleId,
+    meta: { reason: reason ?? null },
+  })
 }
 
 // ─── Day feed + finance summary (staff-visible, plain selects w/ RLS) ────────
