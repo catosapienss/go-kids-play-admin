@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/auth-context"
 import {
   getExpectedTotals, getTodayRegister, closeCashRegister, openCashRegister,
 } from "@/lib/services/cash-register.service"
+import { getTodayFinanceSummary } from "@/lib/services/finance.service"
 import {
   type CashRegister, type ExpectedTotals, isReconciled,
 } from "@/types/cash-register"
@@ -49,6 +50,7 @@ export function DayEndClosingCard({ onClosed }: { onClosed?: (r: CashRegister) =
   // opening change). Persisted in the closing row's meta so it's visible on
   // the read-only summary and in ClosingHistory.
   const [leftInDrawer,  setLeftInDrawer]  = useState(0)
+  const [zReportNo, setZReportNo] = useState("")
   const [notes, setNotes] = useState("")
 
   const canClose = !!user && ["super_admin", "admin", "manager"].includes(user.role)
@@ -113,12 +115,35 @@ export function DayEndClosingCard({ onClosed }: { onClosed?: (r: CashRegister) =
     }
     setSubmitting(true)
     try {
+      // Snapshot a rich revenue breakdown into the closing record so the
+      // history shows retail / playground / wallet / refunds / total split —
+      // stable even if the live tables change later. Best-effort.
+      const fin = await getTodayFinanceSummary().catch(() => null)
+      const breakdown = fin ? {
+        total_revenue:     fin.totalRevenue,
+        retail_revenue:    fin.retailRevenue,
+        playground_revenue: Math.max(0, fin.totalRevenue - fin.retailRevenue),
+        cash_total:        fin.totalCash,
+        card_total:        fin.totalCard,
+        wallet_total:      fin.totalWallet,
+        wallet_loaded:     fin.walletLoaded,
+        refunds:           fin.totalRefunded,
+        net_revenue:       fin.netRevenue,
+        cash_tendered:     fin.cashTendered,
+        card_tendered:     fin.cardTendered,
+        tx_count:          fin.txCount,
+      } : null
+
       const closed = await closeCashRegister({
         countedCash,
         countedCard,
         countedWallet,
         notes: notes.trim(),
-        meta: { left_in_drawer: leftInDrawer },
+        meta: {
+          left_in_drawer: leftInDrawer,
+          z_report_no: zReportNo.trim() || null,
+          breakdown,
+        },
       })
       setRegister(closed)
       toast.success("Kasa kapatıldı", {
@@ -188,6 +213,7 @@ export function DayEndClosingCard({ onClosed }: { onClosed?: (r: CashRegister) =
             </div>
           </div>
         )}
+        <ClosingBreakdown meta={register.meta} />
         {register.notes && (
           <div className="px-6 pb-5 -mt-2">
             <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1">Notlar</p>
@@ -296,6 +322,21 @@ export function DayEndClosingCard({ onClosed }: { onClosed?: (r: CashRegister) =
         </div>
       </div>
 
+      {/* Z Report number — optional POS Z-report reference for the day */}
+      <div className="px-6 pb-4">
+        <label className="flex items-center gap-1 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1">
+          Z Raporu No <span className="text-slate-400 normal-case tracking-normal">· opsiyonel</span>
+        </label>
+        <input
+          type="text"
+          value={zReportNo}
+          onChange={(e) => setZReportNo(e.target.value)}
+          disabled={!canClose || submitting}
+          placeholder="POS Z raporu numarası"
+          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-violet-500/30"
+        />
+      </div>
+
       {/* Notes */}
       <div className="px-6 pb-5">
         <label className="flex items-center gap-1 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1">
@@ -363,6 +404,45 @@ export function DayEndClosingCard({ onClosed }: { onClosed?: (r: CashRegister) =
           )}
         </button>
       </div>
+    </div>
+  )
+}
+
+// ─── Rich revenue breakdown (snapshot stored in meta at close time) ──────────
+
+export function ClosingBreakdown({ meta, compact }: { meta: unknown; compact?: boolean }) {
+  const m = (meta ?? {}) as { z_report_no?: string | null; breakdown?: Record<string, number> | null }
+  const b = m.breakdown
+  const z = m.z_report_no
+  if (!b && !z) return null
+  const rows: Array<[string, number]> = b ? [
+    ["Toplam Ciro",       b.total_revenue ?? 0],
+    ["Perakende Satış",   b.retail_revenue ?? 0],
+    ["Oyun Alanı Geliri", b.playground_revenue ?? 0],
+    ["Nakit",             b.cash_total ?? 0],
+    ["Kart",              b.card_total ?? 0],
+    ["Cüzdan",            b.wallet_total ?? 0],
+    ["Cüzdan Yükleme",    b.wallet_loaded ?? 0],
+    ["İadeler",           b.refunds ?? 0],
+    ["Net Ciro",          b.net_revenue ?? 0],
+  ] : []
+  return (
+    <div className={cn("px-6", compact ? "pb-3" : "pb-5 -mt-2")}>
+      {z && (
+        <div className="mb-2 inline-flex items-center gap-2 text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+          Z Raporu No: <span className="tabular-nums text-slate-900 dark:text-white">{z}</span>
+        </div>
+      )}
+      {rows.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+          {rows.map(([label, val]) => (
+            <div key={label} className="rounded-lg border border-slate-200/70 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 px-2.5 py-1.5">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 truncate">{label}</p>
+              <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">₺{fmt(val)}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

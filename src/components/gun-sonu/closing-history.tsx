@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { listRecentClosings } from "@/lib/services/cash-register.service"
 import { type CashRegister, isReconciled, totalDiscrepancy } from "@/types/cash-register"
 import { EmptyState } from "@/components/system/empty-state"
+import { ClosingBreakdown } from "./day-end-closing-card"
 import { useReconnectToken } from "@/lib/reliability/realtime-supervisor"
 
 // ─── Closing History ─────────────────────────────────────────────────────────
@@ -130,6 +131,7 @@ export function ClosingHistory() {
                       <DiffPair label="Kart"   expected={r.expectedCard}   counted={r.countedCard}   diff={r.diffCard}   />
                       <DiffPair label="Cüzdan" expected={r.expectedWallet} counted={r.countedWallet} diff={r.diffWallet} />
                     </div>
+                    <div className="-mx-5"><ClosingBreakdown meta={r.meta} compact /></div>
                     {Number(r.meta?.left_in_drawer ?? 0) > 0 && (
                       <div className="rounded-md border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/[0.05] px-3 py-2 flex items-center justify-between">
                         <span className="text-[11px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-300">
