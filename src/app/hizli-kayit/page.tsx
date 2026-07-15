@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { CustomerPanel } from "@/components/hizli-kayit/customer-panel"
 import { FastChildrenInput } from "@/components/hizli-kayit/fast-children-input"
 import { SessionDurationPicker } from "@/components/hizli-kayit/session-duration-picker"
+import { MembershipStartBanner } from "@/components/hizli-kayit/membership-start-banner"
 import { InlineRetailPanel } from "@/components/hizli-kayit/inline-retail-panel"
 import { DiscountSection } from "@/components/hizli-kayit/discount-section"
 import { DiscountActionButton } from "@/components/hizli-kayit/discount-action-button"
@@ -17,6 +18,8 @@ import type { LookupResult } from "@/lib/services/entry-code.service"
 import { ShiftClockCard } from "@/components/personel/shift-clock-card"
 import { createChild, createSession, createPayment, deductWallet, updateChildNotes } from "@/lib/services/pos.service"
 import { getApplicableCampaign } from "@/lib/services/campaign.service"
+import { getMembershipStatusForChild, recordWeekendUsage } from "@/lib/services/membership.service"
+import type { MembershipRuleStatus } from "@/types/membership"
 import { checkoutSale } from "@/lib/services/retail"
 import {
   recordDiscount, computeDiscountAmount, maxDiscountForRole,
@@ -98,8 +101,33 @@ export default function HizliKayitPage() {
   const [discountType,    setDiscountType]    = useState<DiscountType>("fixed")
   const [discountValue,   setDiscountValue]   = useState<number>(0)
   const [discountReason,  setDiscountReason]  = useState<DiscountReason | null>(null)
+  // Per-child active-membership entitlement (keyed by real child UUID). Fetched
+  // when a saved child is present; drives the "Üyelikle Başlat" affordance.
+  const [memStatus, setMemStatus] = useState<Record<string, MembershipRuleStatus>>({})
 
   const discountLimits = useSettingsSection("discounts")
+
+  // Fetch today's membership entitlement for each saved (UUID) child once.
+  useEffect(() => {
+    const isUUID = (id: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    const missing = children
+      .map((c) => c.id)
+      .filter((id) => isUUID(id) && memStatus[id] === undefined)
+    if (missing.length === 0) return
+    let cancelled = false
+    void Promise.all(
+      missing.map(async (id) => [id, await getMembershipStatusForChild(id).catch(() => ({ hasMembership: false }))] as const),
+    ).then((pairs) => {
+      if (cancelled) return
+      setMemStatus((prev) => {
+        const next = { ...prev }
+        for (const [id, st] of pairs) next[id] = st as MembershipRuleStatus
+        return next
+      })
+    })
+    return () => { cancelled = true }
+  }, [children, memStatus])
 
   // Sum each child's individual price (each can have a different duration).
   const gameTotal    = children.reduce((s, c) => s + (c.price || 0), 0)
@@ -119,8 +147,9 @@ export default function HizliKayitPage() {
     selectedCustomer !== null &&
     children.length > 0 &&
     children.every((c) => c.name && c.duration != null) &&
-    // Game portion must be fully paid.
-    gameNet > 0 &&
+    // Game portion must be fully paid. A ₺0 total is valid when every session
+    // is played on a membership (no charge) — so only require coverage, not a
+    // strictly-positive total.
     paidGame >= gameNet &&
     // Retail portion (if any) must be fully paid via its own tender split.
     (retailTotal === 0 || paidRetail >= retailTotal)
@@ -154,6 +183,7 @@ export default function HizliKayitPage() {
     setDiscountType("fixed")
     setDiscountValue(0)
     setDiscountReason(null)
+    setMemStatus({})
   }, [])
 
   // Entry-code lookup → resolve to Customer shape and feed the existing
@@ -202,8 +232,44 @@ export default function HizliKayitPage() {
   }, [])
 
   const handleUpdateChild = useCallback((id: string, updates: Partial<ChildEntry>) => {
-    setChildren((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)))
+    setChildren((prev) => prev.map((c) => {
+      if (c.id !== id) return c
+      // If staff picks a paid duration/price for a child that was on membership,
+      // drop the membership flag so it's charged normally (no silent ₺0).
+      const clearsMembership = c.membershipId && (updates.price ?? 0) > 0
+      const cleaned = clearsMembership
+        ? { membershipId: undefined, membershipMode: undefined, membershipMinutes: undefined }
+        : {}
+      return { ...c, ...updates, ...cleaned }
+    }))
   }, [])
+
+  /** Toggle "start on membership" for a child. On → ₺0 tracked session
+   *  (weekday: unlimited; weekend: remaining daily minutes). Off → revert to
+   *  a normal chargeable slot (staff re-picks a duration). */
+  const handleToggleMembership = useCallback((id: string, on: boolean) => {
+    setChildren((prev) => prev.map((c) => {
+      if (c.id !== id) return c
+      if (!on) {
+        return { ...c, membershipId: undefined, membershipMode: undefined, membershipMinutes: undefined, duration: null, price: 0 }
+      }
+      const st = memStatus[id]
+      if (!st || !st.hasMembership) return c
+      const weekday = st.isWeekdayUnlimited === true
+      const remaining = st.weekendRemainingMinutes ?? 0
+      if (!weekday && remaining <= 0) return c
+      return {
+        ...c,
+        membershipId: st.membershipId,
+        membershipMode: weekday ? "weekday" : "weekend",
+        membershipMinutes: weekday ? undefined : remaining,
+        // "free" keeps the existing validation (duration != null) happy; the
+        // real length is taken from membershipMode/membershipMinutes at submit.
+        duration: "free",
+        price: 0,
+      }
+    }))
+  }, [memStatus])
 
   const handleRemoveChild = useCallback(
     (id: string) => {
@@ -302,9 +368,14 @@ export default function HizliKayitPage() {
           }
         }
 
-        const mins = durationMinutes(child.duration)
-        // Apply the Mon/Wed 60→90 bonus to a 60-min purchase only.
-        const bonus = mins === 60 && camp60.applies ? (camp60.bonusMinutes ?? 0) : 0
+        // Membership session (₺0): weekday → unlimited; weekend → the child's
+        // remaining daily allowance. No campaign bonus applies to membership play.
+        const isMembership = !!child.membershipId
+        const mins = isMembership
+          ? (child.membershipMode === "weekday" ? 0 : (child.membershipMinutes ?? 0))
+          : durationMinutes(child.duration)
+        // Apply the Mon/Wed 60→90 bonus to a paid 60-min purchase only.
+        const bonus = !isMembership && mins === 60 && camp60.applies ? (camp60.bonusMinutes ?? 0) : 0
         const totalMins = mins + bonus
         if (bonus > 0) campaignApplied = true
         let session
@@ -320,6 +391,8 @@ export default function HizliKayitPage() {
             duration_minutes: totalMins,
             created_by: user?.id,
             child_notes: childNote,
+            // membership play (₺0, tracked)
+            membership_id: isMembership ? child.membershipId : undefined,
             // campaign breakdown (bonus never revenue)
             purchased_minutes: bonus > 0 ? mins : null,
             bonus_minutes: bonus > 0 ? bonus : null,
@@ -352,6 +425,18 @@ export default function HizliKayitPage() {
           console.error("[hizli-kayit] createPayment failed", payErr, { sessionId: session.id, split })
           const em = payErr instanceof Error ? payErr.message : String(payErr)
           throw new Error(`Ödeme kaydedilemedi (${child.name}): ${em}`)
+        }
+
+        // Weekend membership play consumes the child's daily 180-min ledger.
+        // The UI caps `mins` to the remaining allowance, so this won't exceed;
+        // a failure here must not roll back an already-created ₺0 session.
+        if (isMembership && child.membershipMode === "weekend" && mins > 0) {
+          try {
+            await recordWeekendUsage(child.membershipId as string, childId, mins)
+          } catch (usageErr: unknown) {
+            // eslint-disable-next-line no-console
+            console.warn("[hizli-kayit] weekend usage record failed", usageErr)
+          }
         }
 
         if (!firstSessionId) firstSessionId = session.id
@@ -436,6 +521,7 @@ export default function HizliKayitPage() {
     setDiscountValue(0)
     setDiscountReason(null)
     setLabelNumbers([])
+    setMemStatus({})
   }, [])
 
   /** Cancel button — audit-logged clear so managers can trace who aborted
@@ -493,6 +579,17 @@ export default function HizliKayitPage() {
               onUpdate={handleUpdateChild}
               onRemove={handleRemoveChild}
             />
+            {selectedChildId && (() => {
+              const sc = children.find((c) => c.id === selectedChildId)
+              if (!sc) return null
+              return (
+                <MembershipStartBanner
+                  status={memStatus[sc.id]}
+                  active={!!sc.membershipId}
+                  onToggle={(on) => handleToggleMembership(sc.id, on)}
+                />
+              )
+            })()}
             <SessionDurationPicker
               duration={
                 // Show the currently selected chip's duration if one is

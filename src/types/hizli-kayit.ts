@@ -27,6 +27,14 @@ export interface ChildEntry {
   price: number
   /** Staff note — persisted to children.notes + snapshotted on the session. */
   note?: string
+  /** When set, this session is played on an active monthly membership (₺0).
+   *  weekday → unlimited play; weekend → timed to the child's remaining
+   *  daily minutes (recorded against the 180-min/day weekend ledger). */
+  membershipId?: string
+  membershipMode?: "weekday" | "weekend"
+  /** Weekend timed session length (minutes) — the remaining daily allowance
+   *  at the moment the membership session was started. */
+  membershipMinutes?: number
 }
 
 export interface PaymentEntry {

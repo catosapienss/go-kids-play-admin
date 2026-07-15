@@ -69,8 +69,52 @@ export async function getApplicableCampaign(packageMinutes: number): Promise<App
   } catch { return { applies: false } }
 }
 
+export interface MembershipCampaignReport {
+  membershipsSingle: number
+  membershipsSibling: number
+  membershipsSold: number
+  membershipRevenue: number
+  campaignSessions: number
+  campaignPaidMinutes: number
+  campaignBonusMinutes: number
+  membershipSessions: number
+  membershipWeekdayVisits: number
+  membershipWeekendMinutes: number
+}
+
+/** Aggregated membership + campaign figures for a date range. Bonus minutes are
+ *  reported separately and are NEVER part of revenue. */
+export async function getMembershipCampaignReport(from: Date, to: Date): Promise<MembershipCampaignReport> {
+  const empty: MembershipCampaignReport = {
+    membershipsSingle: 0, membershipsSibling: 0, membershipsSold: 0, membershipRevenue: 0,
+    campaignSessions: 0, campaignPaidMinutes: 0, campaignBonusMinutes: 0,
+    membershipSessions: 0, membershipWeekdayVisits: 0, membershipWeekendMinutes: 0,
+  }
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc("membership_campaign_report", {
+      p_from: from.toISOString(),
+      p_to: to.toISOString(),
+    })
+    if (error) throw error
+    const j = (data ?? {}) as Record<string, unknown>
+    return {
+      membershipsSingle: Number(j.memberships_single ?? 0),
+      membershipsSibling: Number(j.memberships_sibling ?? 0),
+      membershipsSold: Number(j.memberships_sold ?? 0),
+      membershipRevenue: Number(j.membership_revenue ?? 0),
+      campaignSessions: Number(j.campaign_sessions ?? 0),
+      campaignPaidMinutes: Number(j.campaign_paid_minutes ?? 0),
+      campaignBonusMinutes: Number(j.campaign_bonus_minutes ?? 0),
+      membershipSessions: Number(j.membership_sessions ?? 0),
+      membershipWeekdayVisits: Number(j.membership_weekday_visits ?? 0),
+      membershipWeekendMinutes: Number(j.membership_weekend_minutes ?? 0),
+    }
+  } catch { return empty }
+}
+
 /** Owner-only: create/update a campaign. */
-export async function upsertCampaign(c: Partial<Campaign> & { id?: string | null }): Promise<string> {
+export async function upsertCampaign(c: Omit<Partial<Campaign>, "id"> & { id?: string | null }): Promise<string> {
   const supabase = createClient()
   const { data, error } = await supabase.rpc("upsert_campaign", {
     p_id: c.id ?? null,

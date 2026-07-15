@@ -197,7 +197,7 @@ export async function sellMembership(input: SellMembershipInput): Promise<string
 }
 
 /** Owner-only: create/update a membership package definition. */
-export async function upsertMembershipPackage(pkg: Partial<MembershipPackage> & { id?: string | null }): Promise<string> {
+export async function upsertMembershipPackage(pkg: Omit<Partial<MembershipPackage>, "id"> & { id?: string | null }): Promise<string> {
   const supabase = createClient()
   const { data, error } = await supabase.rpc("upsert_membership_package", {
     p_id: pkg.id ?? null,
