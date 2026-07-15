@@ -683,6 +683,10 @@ export default function HizliKayitPage() {
           kidsList={children}
           total={total}
           labelNumbers={labelNumbers}
+          brewmoodDiscountPct={children.reduce((pct, c) => {
+            const st = memStatus[c.id]
+            return st?.hasMembership ? Math.max(pct, st.brewmoodDiscountPct ?? 0) : pct
+          }, 0) || undefined}
           onClose={handleSuccessClose}
         />
       )}

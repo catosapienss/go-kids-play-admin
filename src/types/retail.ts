@@ -60,6 +60,9 @@ export type RetailDiscountType = "fixed" | "percent" | "override"
 export type RetailDiscountReason =
   | "staff" | "vip" | "campaign" | "promotion"
   | "damaged" | "loyalty" | "manager_approval" | "other"
+  // Auto-applied entitlement — Brew Mood coffee discount for active monthly
+  // members. Not offered in the manual picker; set programmatically.
+  | "membership"
   // Legacy values kept so pre-existing rows still render a label.
   | "customer" | "manual"
 
@@ -72,6 +75,7 @@ export const RETAIL_DISCOUNT_REASON_LABELS: Record<RetailDiscountReason, string>
   loyalty:          "Sadakat İndirimi",
   manager_approval: "Yönetici Onayı",
   other:            "Diğer",
+  membership:       "Aylık Üyelik · Brew Mood",
   // legacy
   customer:         "Müşteri İndirimi",
   manual:           "Manuel Düzenleme",
@@ -87,7 +91,7 @@ export const RETAIL_DISCOUNT_REASON_OPTIONS: RetailDiscountReason[] = [
 export function retailDiscountCategory(reason: RetailDiscountReason | null | undefined):
   "staff" | "promotion" | "other" {
   if (reason === "staff" || reason === "manager_approval") return "staff"
-  if (reason === "promotion" || reason === "vip" || reason === "campaign" || reason === "loyalty") return "promotion"
+  if (reason === "promotion" || reason === "vip" || reason === "campaign" || reason === "loyalty" || reason === "membership") return "promotion"
   return "other"
 }
 

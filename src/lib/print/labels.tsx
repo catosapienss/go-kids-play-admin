@@ -16,6 +16,9 @@ interface BaseLabelData {
   endTime:       string   // "HH:mm" or "Sınırsız"
   durationLabel: string   // accepted for back-compat; not rendered
   companyPhone:  string
+  /** Optional promo line — e.g. "Brew Mood Coffee %10 İndirim" for active
+   *  monthly members. Rendered only when set. */
+  promoNote?:    string
 }
 
 export type ChildLabelData  = BaseLabelData
@@ -100,6 +103,9 @@ function baseCss(printer: PrinterSettings): string {
     td.phone { padding: 2mm 0 3mm; vertical-align: bottom; text-align: center;
                font-size: 16pt; font-weight: 300; line-height: 1;
                letter-spacing: 0.05em; white-space: nowrap; }
+    td.promo { padding: 0 0 3mm; vertical-align: bottom; text-align: center;
+               font-size: 12pt; font-weight: 600; line-height: 1.1;
+               letter-spacing: 0.02em; }
 
     td.info .name {
       font-size: 22pt; font-weight: 300; line-height: 1.1;
@@ -137,6 +143,9 @@ function renderUnifiedLabel(data: BaseLabelData): string {
   const name  = escapeHtml(data.childName || "")
   const date  = escapeHtml(data.startDate || "")
   const phone = escapeHtml(formatLabelPhone(data.companyPhone || ""))
+  const promo = data.promoNote
+    ? `<tr><td class="promo" colspan="2">${escapeHtml(data.promoNote)}</td></tr>`
+    : ""
   return `
     <div class="page">
       <div class="rotator">
@@ -152,6 +161,7 @@ function renderUnifiedLabel(data: BaseLabelData): string {
           <tr>
             <td class="phone" colspan="2">${phone}</td>
           </tr>
+          ${promo}
         </table>
       </div>
     </div>

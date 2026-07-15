@@ -4,10 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
   Plus, Minus, Trash2, Banknote, CreditCard, Layers, Loader2, ShoppingBag,
-  CheckCircle2, AlertCircle, X,
+  CheckCircle2, AlertCircle, X, Coffee,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { listProducts, checkoutSale } from "@/lib/services/retail"
+import {
+  BrewmoodMemberLookup, type BrewmoodMember,
+} from "@/components/perakende/brewmood-member-lookup"
 import {
   PAYMENT_METHOD_LABELS, PRODUCT_CATEGORY_LABELS, PRODUCT_CATEGORY_COLORS,
   RETAIL_DISCOUNT_REASON_LABELS,
@@ -49,6 +52,8 @@ export function QuickSale({ onSaleComplete }: QuickSaleProps = {}) {
   const [submitting, setSubmitting] = useState(false)
   const [filter, setFilter] = useState<string>("all")
   const [lastSale, setLastSale] = useState<{ saleId: string; total: number } | null>(null)
+  // Verified Brew Mood monthly member → beverage lines get the coffee discount.
+  const [member, setMember] = useState<BrewmoodMember | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true); setError(null)
@@ -114,7 +119,38 @@ export function QuickSale({ onSaleComplete }: QuickSaleProps = {}) {
   }
 
   function resetCart() {
-    setCart([]); setCashAmount(""); setPayment("cash")
+    setCart([]); setCashAmount(""); setPayment("cash"); setMember(null)
+  }
+
+  // ── Brew Mood member coffee discount ────────────────────────────────────────
+  //
+  // Beverages (İçecek) are the coffee counter's products. Once a member is
+  // verified, one tap applies their % to every beverage line as a `membership`
+  // discount (bypasses manual discount permissions — it is an entitlement).
+
+  const beverageIds = useMemo(
+    () => new Set(products.filter((p) => p.category === "icecek").map((p) => p.id)),
+    [products],
+  )
+  const beverageCount = useMemo(
+    () => cart.filter((l) => beverageIds.has(l.productId)).length,
+    [cart, beverageIds],
+  )
+
+  function applyBrewmood(pct: number) {
+    let applied = 0
+    setCart((prev) => prev.map((l) => {
+      if (!beverageIds.has(l.productId)) return l
+      applied++
+      return { ...l, discount: { type: "percent", value: pct, reason: "membership", note: "Aylık Üyelik · Brew Mood" } }
+    }))
+    if (applied > 0) toast.success(`${applied} içeceğe %${pct} üyelik indirimi uygulandı`)
+    else toast.warning("Sepette içecek yok")
+  }
+
+  function clearBrewmood() {
+    setCart((prev) => prev.map((l) => l.discount?.reason === "membership" ? { ...l, discount: undefined } : l))
+    setMember(null)
   }
 
   // ── checkout ──────────────────────────────────────────────────────────────
@@ -253,6 +289,44 @@ export function QuickSale({ onSaleComplete }: QuickSaleProps = {}) {
             </span>
           )}
         </h2>
+
+        {/* Brew Mood member coffee discount — lookup, then apply to beverages */}
+        {member ? (
+          <div className="rounded-2xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-3 mb-4">
+            <div className="flex items-start gap-2">
+              <Coffee className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-200 truncate">
+                  {member.parentName}
+                </p>
+                <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                  {member.packageName} · Brew Mood %{member.pct} indirim hakkı
+                </p>
+              </div>
+              <button onClick={clearBrewmood} className="text-amber-500 hover:text-amber-700 dark:hover:text-amber-200" aria-label="Kaldır">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => applyBrewmood(member.pct)}
+              disabled={beverageCount === 0}
+              className={cn(
+                "mt-2 w-full py-2 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors",
+                beverageCount === 0
+                  ? "bg-amber-100 dark:bg-amber-500/10 text-amber-400 cursor-not-allowed"
+                  : "bg-amber-600 hover:bg-amber-500 text-white",
+              )}
+            >
+              <Coffee className="w-3.5 h-3.5" />
+              {beverageCount === 0
+                ? "Sepette içecek yok"
+                : `İçeceklere %${member.pct} uygula (${beverageCount})`}
+            </button>
+          </div>
+        ) : (
+          <BrewmoodMemberLookup onVerified={setMember} />
+        )}
 
         {lastSale && cart.length === 0 && (
           <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 p-3 text-xs text-emerald-700 dark:text-emerald-200 flex items-start gap-2 mb-3 relative">

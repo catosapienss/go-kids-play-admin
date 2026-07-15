@@ -19,6 +19,10 @@ interface Props {
    *  When present these are printed verbatim — the single source of truth. The
    *  client-side counter is only a fallback for pre-migration sessions. */
   labelNumbers?: string[]
+  /** Active monthly-member Brew Mood coffee discount (%). When > 0 the label
+   *  carries a "Brew Mood Coffee %N İndirim" promo line so staff at the coffee
+   *  counter can honour it. */
+  brewmoodDiscountPct?: number
 }
 
 function durationLabel(d: ChildEntry["duration"]): string {
@@ -53,7 +57,7 @@ function formatDMY(d: Date): string {
 // Child + parent labels carry identical data — they print identical
 // stickers on purpose so staff doesn't have to keep track of which copy
 // is which during busy hours.
-function buildSharedData(child: ChildEntry, companyPhone: string, queueNumber: string): ChildLabelData {
+function buildSharedData(child: ChildEntry, companyPhone: string, queueNumber: string, promoNote?: string): ChildLabelData {
   const now = new Date()
   const isFree  = child.duration === "free" || child.duration == null
   const minutes = typeof child.duration === "number" ? child.duration : 0
@@ -66,25 +70,29 @@ function buildSharedData(child: ChildEntry, companyPhone: string, queueNumber: s
     endTime:       end ? formatHM(end) : "SINIRSIZ",
     durationLabel: durationLabel(child.duration),
     companyPhone:  companyPhone || "",
+    promoNote,
   }
 }
 
 /** Build child + parent jobs that SHARE a queue number per child. */
-function buildAllJobs(kids: ChildEntry[], companyPhone: string, numbers: string[]): {
+function buildAllJobs(kids: ChildEntry[], companyPhone: string, numbers: string[], promoNote?: string): {
   childJobs:  LabelJob[]
   parentJobs: LabelJob[]
 } {
-  const shared = kids.map((c, i) => buildSharedData(c, companyPhone, numbers[i]))
+  const shared = kids.map((c, i) => buildSharedData(c, companyPhone, numbers[i], promoNote))
   return {
     childJobs:  shared.map((data): LabelJob => ({ kind: "child",  data })),
     parentJobs: shared.map((data): LabelJob => ({ kind: "parent", data: data as ParentLabelData })),
   }
 }
 
-export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _sessionNumber, labelNumbers }: Props) {
+export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _sessionNumber, labelNumbers, brewmoodDiscountPct }: Props) {
   const printer = useSettingsSection("printer")
   const { settings } = useSettings()
   const companyPhone = settings.general.businessPhone || "+90 532 542 5205"
+  const promoNote = brewmoodDiscountPct && brewmoodDiscountPct > 0
+    ? `Brew Mood Coffee %${brewmoodDiscountPct} İndirim`
+    : undefined
   const [busy, setBusy] = useState<"child" | "parent" | "both" | null>(null)
   const autoFiredRef = useRef(false)
 
@@ -100,8 +108,8 @@ export function PrintButtons({ customer: _customer, kidsList, sessionNumber: _se
     [kidsList.length, labelNumbers],
   )
   const { childJobs, parentJobs } = useMemo(
-    () => buildAllJobs(kidsList, companyPhone, queueNumbers),
-    [kidsList, companyPhone, queueNumbers],
+    () => buildAllJobs(kidsList, companyPhone, queueNumbers, promoNote),
+    [kidsList, companyPhone, queueNumbers, promoNote],
   )
 
   async function run(which: "child" | "parent" | "both") {

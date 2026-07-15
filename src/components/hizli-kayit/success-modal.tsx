@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CheckCircle2, X, Baby, Clock, Copy, KeyRound, Printer } from "lucide-react"
+import { CheckCircle2, X, Baby, Clock, Copy, KeyRound, Printer, Coffee } from "lucide-react"
 import { toast } from "sonner"
 import type { ChildEntry, Customer } from "@/types/hizli-kayit"
 import { DURATION_LABELS } from "@/lib/pos-data"
@@ -17,6 +17,9 @@ interface SuccessModalProps {
   total: number
   /** Server-assigned daily label numbers, one per child in kidsList order. */
   labelNumbers?: string[]
+  /** Active monthly-member Brew Mood coffee discount (%) — printed on the label
+   *  and surfaced on-screen so staff can tell the parent. */
+  brewmoodDiscountPct?: number
   onClose: () => void
 }
 
@@ -27,7 +30,7 @@ interface SuccessModalProps {
 // so the parent can return next time without ever giving their name again.
 // The rest of the modal (children list, total) is secondary context.
 
-export function SuccessModal({ customer, kidsList, total, labelNumbers, onClose }: SuccessModalProps) {
+export function SuccessModal({ customer, kidsList, total, labelNumbers, brewmoodDiscountPct, onClose }: SuccessModalProps) {
   const [code, setCode] = useState<string>("")
   const [codeIsFallback, setCodeIsFallback] = useState(false)
 
@@ -156,6 +159,17 @@ export function SuccessModal({ customer, kidsList, total, labelNumbers, onClose 
             </span>
           </div>
 
+          {/* Brew Mood member benefit — printed on the label AND shown here so
+              the cashier can tell the parent about the coffee discount. */}
+          {brewmoodDiscountPct != null && brewmoodDiscountPct > 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2">
+              <Coffee className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 leading-snug">
+                Aylık üyelik · <strong>Brew Mood Coffee %{brewmoodDiscountPct} indirim</strong> — etikete yazıldı, veliye hatırlatın.
+              </p>
+            </div>
+          )}
+
           {/* Label printing — XPrinter XP-470B */}
           <div className="pt-1">
             <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1.5">
@@ -167,6 +181,7 @@ export function SuccessModal({ customer, kidsList, total, labelNumbers, onClose 
               kidsList={kidsList}
               sessionNumber={code || "—"}
               labelNumbers={labelNumbers}
+              brewmoodDiscountPct={brewmoodDiscountPct}
             />
           </div>
 
