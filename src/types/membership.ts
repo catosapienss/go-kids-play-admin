@@ -55,6 +55,64 @@ export interface DbMembershipRow {
   updated_at: string
 }
 
+// ─── Configurable membership packages (migration 035) ───────────────────────
+
+export interface MembershipPackage {
+  id: string
+  name: string
+  price: number
+  includedChildren: number
+  validityDays: number
+  weekdayUnlimited: boolean
+  weekendDailyMinutes: number
+  brewmoodDiscountPct: number
+  active: boolean
+  sortOrder: number
+}
+
+export function dbRowToPackage(r: Record<string, unknown>): MembershipPackage {
+  return {
+    id: r.id as string,
+    name: (r.name as string) ?? "",
+    price: Number(r.price ?? 0),
+    includedChildren: Number(r.included_children ?? 1),
+    validityDays: Number(r.validity_days ?? 30),
+    weekdayUnlimited: (r.weekday_unlimited as boolean) ?? true,
+    weekendDailyMinutes: Number(r.weekend_daily_minutes ?? 180),
+    brewmoodDiscountPct: Number(r.brewmood_discount_pct ?? 0),
+    active: (r.active as boolean) ?? true,
+    sortOrder: Number(r.sort_order ?? 0),
+  }
+}
+
+/** Today's membership entitlement for a child (from membership_status_for_child). */
+export interface MembershipRuleStatus {
+  hasMembership: boolean
+  membershipId?: string
+  packageName?: string
+  isWeekdayUnlimited?: boolean
+  weekendRemainingMinutes?: number
+  weekendDailyMinutes?: number
+  brewmoodDiscountPct?: number
+  includedChildren?: number
+  endsAt?: string | null
+}
+
+export function jsonToRuleStatus(j: Record<string, unknown> | null): MembershipRuleStatus {
+  if (!j || !j.has_membership) return { hasMembership: false }
+  return {
+    hasMembership: true,
+    membershipId: j.membership_id as string,
+    packageName: (j.package_name as string) ?? "",
+    isWeekdayUnlimited: (j.is_weekday_unlimited as boolean) ?? false,
+    weekendRemainingMinutes: j.weekend_remaining_minutes != null ? Number(j.weekend_remaining_minutes) : undefined,
+    weekendDailyMinutes: j.weekend_daily_minutes != null ? Number(j.weekend_daily_minutes) : undefined,
+    brewmoodDiscountPct: j.brewmood_discount_pct != null ? Number(j.brewmood_discount_pct) : undefined,
+    includedChildren: j.included_children != null ? Number(j.included_children) : undefined,
+    endsAt: (j.ends_at as string | null) ?? null,
+  }
+}
+
 export interface Membership {
   id: string
   parentId: string

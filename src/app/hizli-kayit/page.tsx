@@ -16,6 +16,7 @@ import { EntryCodeLookup } from "@/components/hizli-kayit/entry-code-lookup"
 import type { LookupResult } from "@/lib/services/entry-code.service"
 import { ShiftClockCard } from "@/components/personel/shift-clock-card"
 import { createChild, createSession, createPayment, deductWallet, updateChildNotes } from "@/lib/services/pos.service"
+import { getApplicableCampaign } from "@/lib/services/campaign.service"
 import { checkoutSale } from "@/lib/services/retail"
 import {
   recordDiscount, computeDiscountAmount, maxDiscountForRole,
@@ -256,6 +257,13 @@ export default function HizliKayitPage() {
         .filter((p) => p.method === "wallet")
         .reduce((s, p) => s + p.amount, 0)
 
+      // Summer campaign (migration 035): a 60-min NEW registration on Mon/Wed
+      // gets +30 free min (total 90) — charge stays the 60-min price, and the
+      // bonus is never counted as revenue. Config-driven; excluded packages
+      // (30-min, unlimited) return { applies:false }. Fetched once for the batch.
+      const camp60 = await getApplicableCampaign(60).catch(() => ({ applies: false as const }))
+      let campaignApplied = false
+
       for (let i = 0; i < children.length; i++) {
         const child = children[i]
         const split = perChildPayments[i]
@@ -295,6 +303,10 @@ export default function HizliKayitPage() {
         }
 
         const mins = durationMinutes(child.duration)
+        // Apply the Mon/Wed 60→90 bonus to a 60-min purchase only.
+        const bonus = mins === 60 && camp60.applies ? (camp60.bonusMinutes ?? 0) : 0
+        const totalMins = mins + bonus
+        if (bonus > 0) campaignApplied = true
         let session
         try {
           session = await createSession({
@@ -305,9 +317,15 @@ export default function HizliKayitPage() {
             parent_name: selectedCustomer.name,
             parent_phone: selectedCustomer.phone,
             staff_name: user?.fullName ?? "Personel",
-            duration_minutes: mins,
+            duration_minutes: totalMins,
             created_by: user?.id,
             child_notes: childNote,
+            // campaign breakdown (bonus never revenue)
+            purchased_minutes: bonus > 0 ? mins : null,
+            bonus_minutes: bonus > 0 ? bonus : null,
+            total_minutes: bonus > 0 ? totalMins : null,
+            campaign_id: bonus > 0 ? (camp60.applies ? camp60.campaignId : null) : null,
+            campaign_name: bonus > 0 ? (camp60.applies ? camp60.campaignName : null) : null,
           })
         } catch (sessErr: unknown) {
           // eslint-disable-next-line no-console
@@ -390,7 +408,13 @@ export default function HizliKayitPage() {
 
       setLabelNumbers(assignedNumbers)
       setShowSuccess(true)
-      toast.success("Oyun başlatıldı!")
+      if (campaignApplied) {
+        toast.success("Oyun başlatıldı! 🎁", {
+          description: `Kampanya: Satın Alınan 60 dk + Hediye ${camp60.applies ? camp60.bonusMinutes : 30} dk = Toplam ${60 + (camp60.applies ? (camp60.bonusMinutes ?? 30) : 30)} dk`,
+        })
+      } else {
+        toast.success("Oyun başlatıldı!")
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "İşlem başarısız"
       toast.error("Hata: " + msg)

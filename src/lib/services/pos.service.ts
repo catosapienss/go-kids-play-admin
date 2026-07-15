@@ -178,6 +178,26 @@ export async function createChild(input: CreateChildInput): Promise<string> {
   return data!.id as string
 }
 
+export interface ChildRow { id: string; fullName: string; age: number | null }
+
+/** All children of a parent — for membership child selection (single/sibling). */
+export async function getChildrenByParent(parentId: string): Promise<ChildRow[]> {
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("children")
+      .select("id, full_name, age")
+      .eq("parent_id", parentId)
+      .order("full_name", { ascending: true })
+    if (error) throw error
+    return (data ?? []).map((r) => ({
+      id: r.id as string,
+      fullName: (r.full_name as string) ?? "",
+      age: r.age != null ? Number(r.age) : null,
+    }))
+  } catch { return [] }
+}
+
 /** Update the persistent note on a child master record (children.notes). */
 export async function updateChildNotes(childId: string, notes: string | null): Promise<void> {
   const supabase = createClient()
@@ -222,12 +242,28 @@ export async function createSession(input: CreateSessionInput): Promise<DbSessio
   const payload: Record<string, unknown> = { ...base }
   if (note) payload.child_notes = note
 
+  // Membership + campaign breakdown (migration 035). Additive — added only when
+  // provided so pre-035 schemas keep working via the missing-column fallback.
+  const extras: Record<string, unknown> = {}
+  if (input.membership_id)     extras.membership_id     = input.membership_id
+  if (input.campaign_id)       extras.campaign_id       = input.campaign_id
+  if (input.campaign_name)     extras.campaign_name     = input.campaign_name
+  if (input.purchased_minutes != null) extras.purchased_minutes = input.purchased_minutes
+  if (input.bonus_minutes     != null) extras.bonus_minutes     = input.bonus_minutes
+  if (input.total_minutes     != null) extras.total_minutes     = input.total_minutes
+  Object.assign(payload, extras)
+
   let { data, error } = await supabase
     .from("sessions")
     .insert(payload)
     .select()
     .single()
-  if (error && note && isMissingColumnError(error, "child_notes")) {
+  if (error && isMissingColumnError(error, "membership_id") || error && isMissingColumnError(error, "campaign_id") || error && isMissingColumnError(error, "bonus_minutes")) {
+    // Pre-035 schema — retry with just the core payload (+ note if present).
+    const fallback: Record<string, unknown> = { ...base }
+    if (note) fallback.child_notes = note
+    ;({ data, error } = await supabase.from("sessions").insert(fallback).select().single())
+  } else if (error && note && isMissingColumnError(error, "child_notes")) {
     // Migration 019 not applied yet — retry without the note snapshot.
     ;({ data, error } = await supabase.from("sessions").insert(base).select().single())
   }

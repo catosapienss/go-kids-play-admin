@@ -81,6 +81,17 @@ export interface CreateSessionInput {
   created_by?: string
   /** Note snapshot stored on the session row (sessions.child_notes). */
   child_notes?: string
+  // ── Membership + campaign breakdown (migration 035, all optional) ──────────
+  /** Membership this session is played under (weekday-unlimited / weekend). */
+  membership_id?: string | null
+  /** Paid minutes the customer purchased (before any bonus). */
+  purchased_minutes?: number | null
+  /** Free promotional bonus minutes (never revenue). */
+  bonus_minutes?: number | null
+  /** purchased + bonus (what the timer actually runs). */
+  total_minutes?: number | null
+  campaign_id?: string | null
+  campaign_name?: string | null
 }
 
 export interface CreatePaymentInput {

@@ -4,9 +4,10 @@ import { safeFinanceAction } from "@/lib/reliability/idempotency"
 import { recordAudit } from "@/lib/reliability/audit-log"
 import { createLogger } from "@/lib/reliability/logger"
 import {
-  dbRowToMembership, dbRowToPause,
+  dbRowToMembership, dbRowToPause, dbRowToPackage, jsonToRuleStatus,
   type DbMembershipRow, type DbPauseRow,
   type Membership, type MembershipPause, type MembershipType,
+  type MembershipPackage, type MembershipRuleStatus,
 } from "@/types/membership"
 
 const log = createLogger("membership")
@@ -120,6 +121,96 @@ export async function getMembershipAnalytics(): Promise<MembershipAnalytics> {
     sum.expiringSoon      += Number(r.expiring_soon)    || 0
   }
   return sum
+}
+
+// ─── Membership packages + monthly-membership sale (migration 035) ──────────
+
+export async function listPackages(opts?: { onlyActive?: boolean }): Promise<MembershipPackage[]> {
+  try {
+    const supabase = createClient()
+    let q = supabase.from("membership_packages").select("*").order("sort_order", { ascending: true })
+    if (opts?.onlyActive) q = q.eq("active", true)
+    const { data, error } = await q
+    if (error) throw error
+    return (data ?? []).map((r) => dbRowToPackage(r as Record<string, unknown>))
+  } catch { return [] }
+}
+
+/** Today's entitlement for a child (weekday-unlimited / weekend remaining). */
+export async function getMembershipStatusForChild(childId: string): Promise<MembershipRuleStatus> {
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc("membership_status_for_child", { p_child_id: childId })
+    if (error) throw error
+    return jsonToRuleStatus(data as Record<string, unknown> | null)
+  } catch { return { hasMembership: false } }
+}
+
+/** Add weekend minutes for a child; throws "weekend_limit_exceeded" past the cap. */
+export async function recordWeekendUsage(membershipId: string, childId: string, minutes: number): Promise<number> {
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc("record_membership_weekend_usage", {
+    p_membership_id: membershipId, p_child_id: childId, p_minutes: minutes,
+  })
+  if (error) {
+    if (error.message?.includes("weekend_limit_exceeded")) throw new Error("Hafta sonu günlük limiti (180 dk) aşılamaz")
+    throw error
+  }
+  return Number(data ?? 0)
+}
+
+export interface SellMembershipInput {
+  packageId: string
+  parentId: string
+  childIds: string[]
+  cash?: number
+  card?: number
+  wallet?: number
+  notes?: string
+}
+
+/** Sell a monthly membership (single or sibling). Manager+ enforced server-side. */
+export async function sellMembership(input: SellMembershipInput): Promise<string> {
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc("sell_membership", {
+    p_package_id: input.packageId,
+    p_parent_id:  input.parentId,
+    p_child_ids:  input.childIds,
+    p_cash:   input.cash ?? 0,
+    p_card:   input.card ?? 0,
+    p_wallet: input.wallet ?? 0,
+    p_notes:  input.notes ?? null,
+  })
+  if (error) {
+    const map: Record<string, string> = {
+      not_authorized:       "Bu işlem için yönetici yetkisi gerekli",
+      package_not_found:    "Paket bulunamadı",
+      child_count_mismatch: "Bu paket için seçilen çocuk sayısı hatalı",
+      child_not_owned:      "Seçilen çocuklar bu veliye ait değil",
+    }
+    const key = Object.keys(map).find((k) => error.message?.includes(k))
+    throw new Error(key ? map[key] : (error.message ?? "Üyelik satılamadı"))
+  }
+  void recordAudit({ action: "membership.sell", severity: "info", entityType: "membership", entityId: data as string,
+    meta: { packageId: input.packageId, childCount: input.childIds.length } })
+  return data as string
+}
+
+/** Owner-only: create/update a membership package definition. */
+export async function upsertMembershipPackage(pkg: Partial<MembershipPackage> & { id?: string | null }): Promise<string> {
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc("upsert_membership_package", {
+    p_id: pkg.id ?? null,
+    p_name: pkg.name, p_price: pkg.price, p_included_children: pkg.includedChildren,
+    p_validity_days: pkg.validityDays, p_weekday_unlimited: pkg.weekdayUnlimited,
+    p_weekend_daily_minutes: pkg.weekendDailyMinutes, p_brewmood_discount_pct: pkg.brewmoodDiscountPct,
+    p_active: pkg.active ?? true,
+  })
+  if (error) {
+    if (error.message?.includes("not_authorized")) throw new Error("Sadece yönetici düzenleyebilir")
+    throw error
+  }
+  return data as string
 }
 
 // ─── Mutations ───────────────────────────────────────────────────────────────
