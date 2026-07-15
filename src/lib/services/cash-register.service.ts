@@ -47,10 +47,15 @@ export async function getTodayRegister(): Promise<CashRegister | null> {
   const today = new Date()
   const businessDate = today.toISOString().slice(0, 10) // YYYY-MM-DD
 
+  // Prefer the CLOSED row for the day: if the register was already closed (by
+  // anyone), the whole business must see it as closed — never a leftover 'open'
+  // row. status 'closed' sorts before 'open' ascending.
   const { data, error } = await supabase
     .from("cash_register_closings")
     .select("*")
     .eq("business_date", businessDate)
+    .order("status", { ascending: true })
+    .order("closed_at", { ascending: false, nullsFirst: false })
     .order("opened_at", { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -168,4 +173,48 @@ export async function listRecentClosings(limit = 20): Promise<CashRegister[]> {
   })
   if (error) throw error
   return ((data ?? []) as DbCashRegisterRow[]).map(dbRowToRegister)
+}
+
+// ─── Staff day-end handovers (personel gün sonu teslimleri) ──────────────────
+//
+// Staff (personel) submit a lightweight day-end via StaffClosingForm, which is
+// stored as an audit record (action = "staff.day.closing"). Surface those to
+// the manager/owner so EVERY authorized user's closing is visible in the panel,
+// not only the register (manager/admin) closings.
+
+export interface StaffClosingRow {
+  id: string
+  submittedByName: string
+  cash: number
+  posZ: number
+  notes: string | null
+  businessDate: string
+  submittedAt: string
+}
+
+export async function listStaffClosings(limit = 30): Promise<StaffClosingRow[]> {
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("audit_logs")
+      .select("id, meta, created_at")
+      .eq("action", "staff.day.closing")
+      .order("created_at", { ascending: false })
+      .limit(limit)
+    if (error) throw error
+    return (data ?? []).map((r) => {
+      const m = (r.meta ?? {}) as Record<string, unknown>
+      return {
+        id: r.id as string,
+        submittedByName: (m.submitted_by as string) || "Personel",
+        cash: Number(m.cash_count ?? 0),
+        posZ: Number(m.pos_z_report ?? 0),
+        notes: (m.notes as string) || null,
+        businessDate: (m.business_date as string) || String(r.created_at ?? "").slice(0, 10),
+        submittedAt: r.created_at as string,
+      }
+    })
+  } catch {
+    return []
+  }
 }
