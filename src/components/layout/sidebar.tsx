@@ -50,8 +50,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Müşteri & Üyelik",
     items: [
       { href: "/crm",           label: "Müşteriler",       icon: Users,           module: "customers" },
-      // Üyelikler: mobile-app driven; hidden until the parent app ships.
-      // { href: "/uyelikler",     label: "Üyelikler",        icon: Sparkles,        module: "memberships" },
+      { href: "/uyelikler",     label: "Üyelikler",        icon: Sparkles,        module: "memberships" },
       { href: "/cuzdan",        label: "Cüzdan",           icon: Wallet,          module: "wallet" },
       { href: "/dogum-gunleri", label: "Doğum Günleri",    icon: Cake,            module: "birthdays" },
     ],
