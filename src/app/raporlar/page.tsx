@@ -11,7 +11,6 @@ import { DateRangePicker } from "@/components/raporlar/date-range-picker"
 
 import { RevenuePeriodCards }     from "@/components/raporlar/revenue-period-cards"
 import { RevenueMixDonut }        from "@/components/raporlar/revenue-mix-donut"
-import { RevenueBreakdownChart }  from "@/components/raporlar/revenue-breakdown-chart"
 import { PeakHoursHeatmap }       from "@/components/raporlar/peak-hours-heatmap"
 import { PackagePerformancePanel } from "@/components/raporlar/package-performance-panel"
 import { CustomerInsightsPanel }  from "@/components/raporlar/customer-insights-panel"
@@ -90,7 +89,6 @@ export default function RaporlarPage() {
           {tab === "overview" && (
             <div className="space-y-5">
               <RevenueMixDonut />
-              <RevenueBreakdownChart />
               <RecentTransactionsPanel />
               <DiscountsPanel limit={50} />
               <RetailDiscountsPanel limit={50} />
@@ -105,7 +103,6 @@ export default function RaporlarPage() {
           {tab === "revenue" && (
             <div className="space-y-5">
               <RevenueMixDonut />
-              <RevenueBreakdownChart />
               <RecentTransactionsPanel limit={100} />
               <DiscountsPanel limit={100} />
               <RetailDiscountsPanel limit={100} />
