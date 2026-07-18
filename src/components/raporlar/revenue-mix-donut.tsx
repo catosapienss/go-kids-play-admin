@@ -102,6 +102,7 @@ export function RevenueMixDonut() {
               strokeWidth={0}
               startAngle={90}
               endAngle={-270}
+              isAnimationActive={false}
             >
               {slices.map((s) => <Cell key={s.key} fill={s.color} />)}
             </Pie>
