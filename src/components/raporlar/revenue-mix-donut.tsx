@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts"
+import { PieChart, Pie, Cell, Tooltip } from "recharts"
 import { useDateRange } from "@/lib/reports/date-range-context"
 import { getRevenueByCategory } from "@/lib/services/reports.service"
 import { PRESET_LABEL, fmtRange, type RevenueByCategory } from "@/types/reports"
@@ -84,44 +84,45 @@ export function RevenueMixDonut() {
       <Header subtitle={subtitle} />
 
       <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-5">
-        {/* Donut */}
-        <div className="relative w-full sm:w-[200px] h-[200px] shrink-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={slices}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                innerRadius={62}
-                outerRadius={92}
-                paddingAngle={slices.length > 1 ? 2 : 0}
-                strokeWidth={0}
-                startAngle={90}
-                endAngle={-270}
-              >
-                {slices.map((s) => <Cell key={s.key} fill={s.color} />)}
-              </Pie>
-              <Tooltip
-                cursor={false}
-                content={({ active, payload }) => {
-                  if (!active || !payload || payload.length === 0) return null
-                  const p = payload[0].payload as Slice
-                  return (
-                    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md px-3 py-2 text-xs">
-                      <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
-                        <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-                        {p.name}
-                      </div>
-                      <div className="mt-0.5 font-black tabular-nums text-slate-900 dark:text-white">{fmtTRY(p.value)}</div>
-                      <div className="text-slate-500 dark:text-slate-400 tabular-nums">{fmtPct(p.value, data.total)}</div>
+        {/* Donut — fixed 200×200 so the arc never collapses to a sliver
+            (recharts ResponsiveContainer can measure 0 width inside a flex row
+            during the first paint). Responsiveness is handled by the flex layout
+            stacking the fixed donut above the legend on narrow screens. */}
+        <div className="relative w-[200px] h-[200px] shrink-0 mx-auto sm:mx-0">
+          <PieChart width={200} height={200}>
+            <Pie
+              data={slices}
+              dataKey="value"
+              nameKey="name"
+              cx={100}
+              cy={100}
+              innerRadius={62}
+              outerRadius={92}
+              paddingAngle={slices.length > 1 ? 2 : 0}
+              strokeWidth={0}
+              startAngle={90}
+              endAngle={-270}
+            >
+              {slices.map((s) => <Cell key={s.key} fill={s.color} />)}
+            </Pie>
+            <Tooltip
+              cursor={false}
+              content={({ active, payload }) => {
+                if (!active || !payload || payload.length === 0) return null
+                const p = payload[0].payload as Slice
+                return (
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md px-3 py-2 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
+                      <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+                      {p.name}
                     </div>
-                  )
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+                    <div className="mt-0.5 font-black tabular-nums text-slate-900 dark:text-white">{fmtTRY(p.value)}</div>
+                    <div className="text-slate-500 dark:text-slate-400 tabular-nums">{fmtPct(p.value, data.total)}</div>
+                  </div>
+                )
+              }}
+            />
+          </PieChart>
           {/* Center total */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">Toplam</span>
