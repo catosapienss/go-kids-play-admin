@@ -370,3 +370,35 @@ export function dbRowToStaffPerf(r: DbStaffPerfRow): StaffPerformanceRow {
     refundRate:    num(r.refund_rate),
   }
 }
+
+// ─── Revenue by category (donut, range-aware — migration 037) ────────────────
+//
+// One row of revenue split by business category over the selected range. Each
+// field mirrors the same source the matching report tab uses (single source of
+// truth). `total` is the server-computed sum of the four categories.
+
+export interface RawRevenueByCategory {
+  sessions:    number | string
+  retail:      number | string
+  memberships: number | string
+  birthdays:   number | string
+  total:       number | string
+}
+
+export interface RevenueByCategory {
+  sessions:    number
+  retail:      number
+  memberships: number
+  birthdays:   number
+  total:       number
+}
+
+export function normalizeRevenueByCategory(r: RawRevenueByCategory): RevenueByCategory {
+  const sessions    = num(r.sessions)
+  const retail      = num(r.retail)
+  const memberships = num(r.memberships)
+  const birthdays   = num(r.birthdays)
+  // Trust the server total, but fall back to the local sum if it's absent.
+  const total = num(r.total) || sessions + retail + memberships + birthdays
+  return { sessions, retail, memberships, birthdays, total }
+}

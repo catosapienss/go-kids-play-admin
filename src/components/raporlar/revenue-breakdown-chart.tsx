@@ -78,7 +78,7 @@ export function RevenueBreakdownChart() {
         <div>
           <div className="flex items-center gap-2">
             <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-            <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Gelir Dağılımı</p>
+            <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Gelir Trendi · Ödeme Yöntemi</p>
           </div>
           <p className="text-3xl font-black tabular-nums text-slate-900 dark:text-white mt-1">
             {fmtTRY(totals!.net)}

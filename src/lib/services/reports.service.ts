@@ -3,12 +3,12 @@ import { safeReadRpc } from "@/lib/reliability/safe-rpc"
 import {
   normalizeRevenuePeriods, dbRowToRevenueDay, dbRowToPeakHour,
   normalizeInsights, normalizeOrgAnalytics, normalizePackagePerformance,
-  dbRowToStaffPerf,
+  dbRowToStaffPerf, normalizeRevenueByCategory,
   type DateRange, type RevenuePeriods, type RevenueDayPoint, type PeakHourCell,
   type CustomerInsights, type OrgAnalytics, type PackagePerformance,
   type StaffPerformanceRow,
   type DbRevenueDayRow, type DbPeakHourRow, type DbStaffPerfRow,
-  type RawRevenuePeriods,
+  type RawRevenuePeriods, type RawRevenueByCategory, type RevenueByCategory,
 } from "@/types/reports"
 
 // ─── Helper: range → RPC params ──────────────────────────────────────────────
@@ -49,6 +49,21 @@ export async function getRevenueBreakdown(range?: DateRange): Promise<RevenueDay
     { fallback: [], label: "get_revenue_breakdown" },
   )
   return (data ?? []).map(dbRowToRevenueDay)
+}
+
+// ─── Revenue by category (donut — migration 037) ─────────────────────────────
+
+const EMPTY_REVENUE_BY_CATEGORY: RawRevenueByCategory = {
+  sessions: 0, retail: 0, memberships: 0, birthdays: 0, total: 0,
+}
+
+export async function getRevenueByCategory(range?: DateRange): Promise<RevenueByCategory> {
+  const supabase = createClient()
+  const data = await safeReadRpc<RawRevenueByCategory, RawRevenueByCategory>(
+    () => supabase.rpc("revenue_by_category", rpcRange(range)),
+    { fallback: EMPTY_REVENUE_BY_CATEGORY, label: "revenue_by_category" },
+  )
+  return normalizeRevenueByCategory(data)
 }
 
 // ─── Peak hours heatmap ──────────────────────────────────────────────────────
