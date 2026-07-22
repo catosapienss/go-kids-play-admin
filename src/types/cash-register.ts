@@ -23,9 +23,16 @@ export interface DbCashRegisterRow {
   counted_card: number
   counted_wallet: number
 
-  diff_cash: number
-  diff_card: number
-  diff_wallet: number
+  // Discrepancies. Production has shipped two schema variants — migration 009
+  // named these `diff_*` (generated columns), the recovery script named them
+  // `*_diff` (plain columns). Both are optional here; `dbRowToRegister`
+  // derives the value from counted − expected instead of trusting either.
+  diff_cash?: number | null
+  diff_card?: number | null
+  diff_wallet?: number | null
+  cash_diff?: number | null
+  card_diff?: number | null
+  wallet_diff?: number | null
 
   refund_total: number
   session_count: number
@@ -69,6 +76,32 @@ export interface CashRegister {
   meta: Record<string, unknown>
 }
 
+/** Coerce to a finite number, or `null` when the value is absent/garbage. */
+function finite(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * Discrepancy for one payment method.
+ *
+ * Derived from `counted − expected` — that is the definition, it matches BOTH
+ * schema variants (009's generated column and the recovery script's computed
+ * column), and it cannot go stale. The stored column is only a fallback for
+ * the case where counted/expected themselves are missing.
+ */
+function discrepancy(counted: unknown, expected: unknown, ...stored: unknown[]): number {
+  const c = finite(counted)
+  const e = finite(expected)
+  if (c !== null && e !== null) return c - e
+  for (const s of stored) {
+    const n = finite(s)
+    if (n !== null) return n
+  }
+  return 0
+}
+
 export function dbRowToRegister(r: DbCashRegisterRow): CashRegister {
   return {
     id: r.id,
@@ -86,9 +119,9 @@ export function dbRowToRegister(r: DbCashRegisterRow): CashRegister {
     countedCash:    Number(r.counted_cash),
     countedCard:    Number(r.counted_card),
     countedWallet:  Number(r.counted_wallet),
-    diffCash:       Number(r.diff_cash),
-    diffCard:       Number(r.diff_card),
-    diffWallet:     Number(r.diff_wallet),
+    diffCash:       discrepancy(r.counted_cash,   r.expected_cash,   r.diff_cash,   r.cash_diff),
+    diffCard:       discrepancy(r.counted_card,   r.expected_card,   r.diff_card,   r.card_diff),
+    diffWallet:     discrepancy(r.counted_wallet, r.expected_wallet, r.diff_wallet, r.wallet_diff),
     refundTotal:    Number(r.refund_total),
     sessionCount:   Number(r.session_count),
     transactionCount: Number(r.transaction_count),
