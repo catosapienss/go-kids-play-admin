@@ -6,6 +6,8 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
 import { recordAudit } from "@/lib/reliability/audit-log"
+import { getExpectedTotals } from "@/lib/services/cash-register.service"
+import { getTodayFinanceSummary } from "@/lib/services/finance.service"
 
 // ─── Staff Day-End Closing Form ───────────────────────────────────────────────
 //
@@ -63,6 +65,15 @@ export function StaffClosingForm({ onSubmitted }: Props) {
         submittedById: user?.id ?? "",
       }
 
+      // Snapshot the system-side figures at submit time so the owner can audit
+      // this handover later without re-deriving anything from live tables.
+      // Best-effort: a staff account without read access simply stores nothing
+      // extra and the history falls back to the counted figures.
+      const [expected, fin] = await Promise.all([
+        getExpectedTotals().catch(() => null),
+        getTodayFinanceSummary().catch(() => null),
+      ])
+
       await recordAudit({
         action: "staff.day.closing",
         severity: "info",
@@ -74,6 +85,27 @@ export function StaffClosingForm({ onSubmitted }: Props) {
           submitted_by:  user?.fullName ?? "",
           submitted_by_id: user?.id ?? "",
           business_date: new Date().toISOString().slice(0, 10),
+          expected: expected ? {
+            cash:   expected.expectedCash,
+            card:   expected.expectedCard,
+            wallet: expected.expectedWallet,
+            total:  expected.expectedTotal,
+            refund_total:      expected.refundTotal,
+            session_count:     expected.sessionCount,
+            transaction_count: expected.transactionCount,
+          } : null,
+          breakdown: fin ? {
+            total_revenue:      fin.totalRevenue,
+            retail_revenue:     fin.retailRevenue,
+            playground_revenue: Math.max(0, fin.totalRevenue - fin.retailRevenue),
+            cash_total:         fin.totalCash,
+            card_total:         fin.totalCard,
+            wallet_total:       fin.totalWallet,
+            wallet_loaded:      fin.walletLoaded,
+            refunds:            fin.totalRefunded,
+            net_revenue:        fin.netRevenue,
+            tx_count:           fin.txCount,
+          } : null,
         },
       })
 

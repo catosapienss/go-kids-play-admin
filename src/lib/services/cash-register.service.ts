@@ -184,12 +184,42 @@ export async function listRecentClosings(limit = 20): Promise<CashRegister[]> {
 
 export interface StaffClosingRow {
   id: string
+  /** Stable, human-quotable closing reference derived from the audit row id. */
+  closingNo: string
   submittedByName: string
+  submittedById: string | null
+
+  /** Operator-typed counts. */
   cash: number
   posZ: number
+  countedTotal: number
+
+  /** System snapshot taken at submit time. `null` on legacy rows (pre-snapshot). */
+  expectedCash: number | null
+  expectedCard: number | null
+  expectedWallet: number | null
+  expectedTotal: number | null
+  totalRevenue: number | null
+  retailRevenue: number | null
+  walletTotal: number | null
+  transactionCount: number | null
+
+  /** counted (nakit + POS) − beklenen (nakit + kart). `null` without a snapshot. */
+  difference: number | null
+
   notes: string | null
   businessDate: string
   submittedAt: string
+}
+
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+export function staffClosingNo(id: string): string {
+  return `#${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`
 }
 
 export async function listStaffClosings(limit = 30): Promise<StaffClosingRow[]> {
@@ -204,11 +234,41 @@ export async function listStaffClosings(limit = 30): Promise<StaffClosingRow[]> 
     if (error) throw error
     return (data ?? []).map((r) => {
       const m = (r.meta ?? {}) as Record<string, unknown>
+      const b = (m.breakdown ?? null) as Record<string, unknown> | null
+      const e = (m.expected ?? null) as Record<string, unknown> | null
+
+      const cash = Number(m.cash_count ?? 0)
+      const posZ = Number(m.pos_z_report ?? 0)
+
+      const expectedCash   = num(e?.cash)
+      const expectedCard   = num(e?.card)
+      const expectedWallet = num(e?.wallet)
+      const expectedTotal  = num(e?.total)
+
+      // Staff hand over physical cash + the POS Z-report; wallet is system-only
+      // and therefore never part of the counted side of the comparison.
+      const difference =
+        expectedCash === null || expectedCard === null
+          ? null
+          : cash + posZ - (expectedCash + expectedCard)
+
       return {
         id: r.id as string,
+        closingNo: staffClosingNo(r.id as string),
         submittedByName: (m.submitted_by as string) || "Personel",
-        cash: Number(m.cash_count ?? 0),
-        posZ: Number(m.pos_z_report ?? 0),
+        submittedById: (m.submitted_by_id as string) || null,
+        cash,
+        posZ,
+        countedTotal: cash + posZ,
+        expectedCash,
+        expectedCard,
+        expectedWallet,
+        expectedTotal,
+        totalRevenue:  num(b?.total_revenue),
+        retailRevenue: num(b?.retail_revenue),
+        walletTotal:   num(b?.wallet_total),
+        transactionCount: num(e?.transaction_count) ?? num(b?.tx_count),
+        difference,
         notes: (m.notes as string) || null,
         businessDate: (m.business_date as string) || String(r.created_at ?? "").slice(0, 10),
         submittedAt: r.created_at as string,

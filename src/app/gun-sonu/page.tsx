@@ -3,7 +3,6 @@
 import { MainLayout } from "@/components/layout/main-layout"
 import { DayEndClosingCard } from "@/components/gun-sonu/day-end-closing-card"
 import { ClosingHistory } from "@/components/gun-sonu/closing-history"
-import { StaffClosingHistory } from "@/components/gun-sonu/staff-closing-history"
 import { DayEndPanel } from "@/components/raporlar/day-end-panel"
 import { StaffAnalyticsPanel } from "@/components/dashboard/staff-analytics"
 import { PopularPackagesPanel } from "@/components/dashboard/popular-packages"
@@ -60,14 +59,10 @@ export default function GunSonuPage() {
           </div>
         </section>
 
-        <section>
+        {/* ── Kapanış geçmişi — kasa kapanışları ve personel teslimleri tek
+               tabloda; `Tür` sütunu / filtresi ikisini ayırt eder. ─────────── */}
+        <section aria-label="Kapanış Geçmişi" className="pt-2">
           <ClosingHistory />
-        </section>
-
-        {/* Staff (personel) day-end handovers — every authorized user's closing
-            is visible to the owner, not only manager/admin register closings. */}
-        <section>
-          <StaffClosingHistory />
         </section>
       </div>
     </MainLayout>
