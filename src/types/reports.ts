@@ -377,12 +377,39 @@ export function dbRowToStaffPerf(r: DbStaffPerfRow): StaffPerformanceRow {
 // field mirrors the same source the matching report tab uses (single source of
 // truth). `total` is the server-computed sum of the four categories.
 
+// Migration 038 adds a nakit/kart tender split on top of the same row. Every
+// split field is optional here so a client deployed before that migration ran
+// simply renders ₺0 splits instead of breaking.
+
+export type RevenueCategoryKey = "sessions" | "retail" | "memberships" | "birthdays"
+
+type RawNum = number | string | null | undefined
+
 export interface RawRevenueByCategory {
   sessions:    number | string
   retail:      number | string
   memberships: number | string
   birthdays:   number | string
   total:       number | string
+
+  sessions_cash?:      RawNum; sessions_card?:      RawNum
+  sessions_wallet?:    RawNum; sessions_other?:     RawNum
+  retail_cash?:        RawNum; retail_card?:        RawNum
+  retail_wallet?:      RawNum; retail_other?:       RawNum
+  memberships_cash?:   RawNum; memberships_card?:   RawNum
+  memberships_wallet?: RawNum; memberships_other?:  RawNum
+  birthdays_cash?:     RawNum; birthdays_card?:     RawNum
+  birthdays_wallet?:   RawNum; birthdays_other?:    RawNum
+
+  cash?: RawNum; card?: RawNum; wallet?: RawNum; other?: RawNum
+}
+
+/** How one amount was tendered. `other` = collected but not attributable. */
+export interface TenderSplit {
+  cash:   number
+  card:   number
+  wallet: number
+  other:  number
 }
 
 export interface RevenueByCategory {
@@ -391,7 +418,15 @@ export interface RevenueByCategory {
   memberships: number
   birthdays:   number
   total:       number
+  /** False when the server predates migration 038 — hide the split in the UI. */
+  hasTenderSplit: boolean
+  /** Whole-range nakit/kart split. Zeroed when `hasTenderSplit` is false. */
+  tender: TenderSplit
+  /** Per-category nakit/kart split, same keys as the category amounts. */
+  tenderBy: Record<RevenueCategoryKey, TenderSplit>
 }
+
+const CATEGORY_KEYS: RevenueCategoryKey[] = ["sessions", "retail", "memberships", "birthdays"]
 
 export function normalizeRevenueByCategory(r: RawRevenueByCategory): RevenueByCategory {
   const sessions    = num(r.sessions)
@@ -400,5 +435,29 @@ export function normalizeRevenueByCategory(r: RawRevenueByCategory): RevenueByCa
   const birthdays   = num(r.birthdays)
   // Trust the server total, but fall back to the local sum if it's absent.
   const total = num(r.total) || sessions + retail + memberships + birthdays
-  return { sessions, retail, memberships, birthdays, total }
+
+  // A server still on 037 sends none of the split keys. Report that honestly
+  // instead of dumping the whole total into "Diğer", so the UI can hide the
+  // strip until migration 038 has been applied.
+  const hasTenderSplit = r.cash !== undefined && r.cash !== null
+
+  const raw = r as unknown as Record<string, RawNum>
+  const tenderBy = CATEGORY_KEYS.reduce((acc, key) => {
+    acc[key] = {
+      cash:   num(raw[`${key}_cash`]   ?? 0),
+      card:   num(raw[`${key}_card`]   ?? 0),
+      wallet: num(raw[`${key}_wallet`] ?? 0),
+      other:  num(raw[`${key}_other`]  ?? 0),
+    }
+    return acc
+  }, {} as Record<RevenueCategoryKey, TenderSplit>)
+
+  const tender: TenderSplit = {
+    cash:   num(r.cash   ?? 0),
+    card:   num(r.card   ?? 0),
+    wallet: num(r.wallet ?? 0),
+    other:  num(r.other  ?? 0),
+  }
+
+  return { sessions, retail, memberships, birthdays, total, hasTenderSplit, tender, tenderBy }
 }

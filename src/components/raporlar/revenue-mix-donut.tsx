@@ -2,20 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { PieChart, Pie, Cell, Tooltip } from "recharts"
-import { useDateRange } from "@/lib/reports/date-range-context"
 import { getRevenueByCategory } from "@/lib/services/reports.service"
-import { PRESET_LABEL, fmtRange, type RevenueByCategory } from "@/types/reports"
+import { resolvePreset, type RevenueByCategory, type TenderSplit } from "@/types/reports"
 import { useReconnectToken } from "@/lib/reliability/realtime-supervisor"
 import { PanelSkeleton } from "@/components/dashboard/dashboard-skeletons"
 import { EmptyState } from "@/components/system/empty-state"
 
 // ─── Gelir Dağılımı — category revenue donut ─────────────────────────────────
 //
-// Business-category revenue mix over the selected range: Oyun Seansları /
-// Perakende / Üyelikler / Doğum Günleri. Data comes from ONE server RPC
-// (revenue_by_category, migration 037) whose slices each mirror the matching
-// report tab's own figure — the legend, tooltip and chart therefore always
-// share a single source of truth. Amounts are shown in full ₺ (never 14,2K).
+// Business-category revenue mix: Oyun Seansları / Perakende / Üyelikler /
+// Doğum Günleri, plus a Nakit / Kart tender strip. Data comes from ONE server
+// RPC (revenue_by_category, migrations 037 + 038) whose slices each mirror the
+// matching report tab's own figure — the legend, tooltip and chart therefore
+// always share a single source of truth. Amounts are shown in full ₺.
+//
+// This card is deliberately PINNED TO TODAY: it is the "how did today go right
+// now" panel, so it ignores the page's DateRangePicker and always resolves the
+// `today` preset itself. Every other panel still follows the picker.
 
 // Full Turkish currency — no abbreviation (₺14.280, not 14,2K).
 function fmtTRY(n: number): string {
@@ -29,7 +32,19 @@ function fmtPct(part: number, total: number): string {
   return `%${p.toLocaleString("tr-TR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
 }
 
-type Slice = { key: keyof RevenueByCategory; name: string; value: number; color: string }
+type CategoryKey = "sessions" | "retail" | "memberships" | "birthdays"
+type Slice = { key: CategoryKey; name: string; value: number; color: string; tender: TenderSplit }
+
+// Tender rows under the donut. `other` covers money we know was collected but
+// cannot attribute to a tender (doğum günü kayıtlarında ödeme tipi tutulmuyor,
+// karma üyelik satışının oranı geri alınamıyor) — it is only rendered when > 0
+// so the common nakit/kart case stays a clean two-row strip.
+const TENDER_META: { key: keyof TenderSplit; name: string; color: string }[] = [
+  { key: "cash",   name: "Nakit",  color: "#10b981" }, // emerald-500
+  { key: "card",   name: "Kart",   color: "#3b82f6" }, // blue-500
+  { key: "wallet", name: "Cüzdan", color: "#a855f7" }, // purple-500
+  { key: "other",  name: "Diğer",  color: "#94a3b8" }, // slate-400
+]
 
 // Oyun Seansları carries the brand violet (primary); the rest use lighter,
 // compatible hues so the accent stays the hero while remaining distinguishable.
@@ -42,10 +57,15 @@ const SLICE_META: { key: Slice["key"]; name: string; color: string }[] = [
 ]
 
 export function RevenueMixDonut() {
-  const { range, preset } = useDateRange()
   const [data, setData] = useState<RevenueByCategory | null>(null)
   const [error, setError] = useState<string | null>(null)
   const reconnectToken = useReconnectToken()
+
+  // Always today — recomputed when the calendar day flips (a panel left open
+  // overnight rolls over on its next reconnect tick) instead of being frozen
+  // at mount.
+  const dayKey = new Date().toDateString()
+  const range = useMemo(() => resolvePreset("today"), [dayKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let cancelled = false
@@ -57,13 +77,20 @@ export function RevenueMixDonut() {
     return () => { cancelled = true }
   }, [range, reconnectToken])
 
-  const subtitle = preset === "custom" ? fmtRange(range) : PRESET_LABEL[preset]
+  const subtitle = "Bugün"
 
   const slices = useMemo<Slice[]>(() => {
     if (!data) return []
     return SLICE_META
-      .map((m) => ({ ...m, value: data[m.key] }))
+      .map((m) => ({ ...m, value: data[m.key], tender: data.tenderBy[m.key] }))
       .filter((s) => s.value > 0)
+  }, [data])
+
+  const tenderRows = useMemo(() => {
+    if (!data || !data.hasTenderSplit) return []
+    return TENDER_META
+      .map((m) => ({ ...m, value: data.tender[m.key] }))
+      .filter((t) => t.value > 0)
   }, [data])
 
   if (!data && !error) return <PanelSkeleton height={280} />
@@ -119,6 +146,20 @@ export function RevenueMixDonut() {
                     </div>
                     <div className="mt-0.5 font-black tabular-nums text-slate-900 dark:text-white">{fmtTRY(p.value)}</div>
                     <div className="text-slate-500 dark:text-slate-400 tabular-nums">{fmtPct(p.value, data.total)}</div>
+                    {/* Nakit/kart kırılımı — sadece bilinen tenderlar */}
+                    {data.hasTenderSplit && (
+                    <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-0.5">
+                      {TENDER_META.filter((m) => p.tender[m.key] > 0).map((m) => (
+                        <div key={m.key} className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: m.color }} />
+                          <span>{m.name}</span>
+                          <span className="ml-auto tabular-nums font-bold text-slate-700 dark:text-slate-200">
+                            {fmtTRY(p.tender[m.key])}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    )}
                   </div>
                 )
               }}
@@ -143,6 +184,40 @@ export function RevenueMixDonut() {
           ))}
         </ul>
       </div>
+
+      {/* Nakit / Kart şeridi — aynı toplamın ödeme tipine göre dağılımı */}
+      {tenderRows.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">
+            Ödeme Tipi
+          </p>
+          <div className="mt-2.5 flex h-2 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+            {tenderRows.map((t) => (
+              <span
+                key={t.key}
+                className="h-full"
+                style={{ background: t.color, width: `${(t.value / data.total) * 100}%` }}
+              />
+            ))}
+          </div>
+          <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
+            {tenderRows.map((t) => (
+              <div key={t.key} className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: t.color }} />
+                <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{t.name}</span>
+                <span className="ml-auto text-right">
+                  <span className="block text-sm font-bold tabular-nums text-slate-900 dark:text-white">
+                    {fmtTRY(t.value)}
+                  </span>
+                  <span className="block text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+                    {fmtPct(t.value, data.total)}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
