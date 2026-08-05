@@ -94,6 +94,10 @@ export default function HizliKayitPage() {
   // captured from each created session so the printed sticker matches the
   // atomic per-day sequence. See migration 020.
   const [labelNumbers, setLabelNumbers] = useState<string[]>([])
+  // Snapshot of the registered children, enriched with any campaign bonus, so
+  // the success modal prints labels that match what was actually sold. Taken
+  // at submit time because `children` may be cleared afterwards.
+  const [successKids, setSuccessKids] = useState<ChildEntry[]>([])
   // Section 3 — single duration applied to ALL children. Section 4 — retail.
   const [globalDuration,  setGlobalDuration]  = useState<DurationOption | null>(null)
   const [globalUnitPrice, setGlobalUnitPrice] = useState<number>(0)
@@ -329,6 +333,10 @@ export default function HizliKayitPage() {
       // (30-min, unlimited) return { applies:false }. Fetched once for the batch.
       const camp60 = await getApplicableCampaign(60).catch(() => ({ applies: false as const }))
       let campaignApplied = false
+      // Per-child campaign bonus, captured so the success modal's labels can
+      // print the gifted minutes (end-time + promo line). Index-aligned with
+      // `children`; 0 where no bonus applied.
+      const campaignBonusByChild: number[] = []
 
       for (let i = 0; i < children.length; i++) {
         const child = children[i]
@@ -377,6 +385,7 @@ export default function HizliKayitPage() {
         // Apply the Mon/Wed 60→90 bonus to a paid 60-min purchase only.
         const bonus = !isMembership && mins === 60 && camp60.applies ? (camp60.bonusMinutes ?? 0) : 0
         const totalMins = mins + bonus
+        campaignBonusByChild[i] = bonus
         if (bonus > 0) campaignApplied = true
         let session
         try {
@@ -491,6 +500,14 @@ export default function HizliKayitPage() {
       // makes "registration → appears in Active Sessions" deterministic.
       void refreshSessions()
 
+      // Enrich each child with its campaign bonus so the labels reflect the
+      // gift (end-time + promo line). Only children that actually received a
+      // bonus are touched; everyone else is passed through unchanged.
+      setSuccessKids(children.map((c, i) =>
+        campaignBonusByChild[i] > 0
+          ? { ...c, campaignBonusMinutes: campaignBonusByChild[i] }
+          : c,
+      ))
       setLabelNumbers(assignedNumbers)
       setShowSuccess(true)
       if (campaignApplied) {
@@ -680,7 +697,7 @@ export default function HizliKayitPage() {
       {showSuccess && selectedCustomer && (
         <SuccessModal
           customer={selectedCustomer}
-          kidsList={children}
+          kidsList={successKids.length > 0 ? successKids : children}
           total={total}
           labelNumbers={labelNumbers}
           brewmoodDiscountPct={children.reduce((pct, c) => {

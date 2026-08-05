@@ -35,6 +35,11 @@ export interface ChildEntry {
   /** Weekend timed session length (minutes) — the remaining daily allowance
    *  at the moment the membership session was started. */
   membershipMinutes?: number
+  /** Free campaign minutes granted to THIS child at registration (e.g. the
+   *  Mon/Wed 60→90 bonus). Set only when a bonus actually applied. Carried so
+   *  the printed label's end-time and promo line reflect the gift — the
+   *  session stores it in the DB, but the label reads from this entry. */
+  campaignBonusMinutes?: number
 }
 
 export interface PaymentEntry {

@@ -60,8 +60,15 @@ function formatDMY(d: Date): string {
 function buildSharedData(child: ChildEntry, companyPhone: string, queueNumber: string, promoNote?: string): ChildLabelData {
   const now = new Date()
   const isFree  = child.duration === "free" || child.duration == null
-  const minutes = typeof child.duration === "number" ? child.duration : 0
+  // The printed end-time must include any campaign gift (e.g. Mon/Wed 60→90),
+  // otherwise the sticker undersells what the child actually gets to play.
+  const bonusMin = child.campaignBonusMinutes ?? 0
+  const minutes = (typeof child.duration === "number" ? child.duration : 0) + bonusMin
   const end     = isFree ? null : new Date(now.getTime() + minutes * 60_000)
+  // Per-child promo: a campaign gift takes the line; otherwise fall back to the
+  // batch-level note (Brew Mood member discount). The two never co-occur on one
+  // child — campaign is a paid slot, the member discount is ₺0 play.
+  const campaignNote = bonusMin > 0 ? `Kampanya: +${bonusMin} dk hediye` : undefined
   return {
     queueNumber,
     childName:     (child.name || "—").trim(),
@@ -70,7 +77,7 @@ function buildSharedData(child: ChildEntry, companyPhone: string, queueNumber: s
     endTime:       end ? formatHM(end) : "SINIRSIZ",
     durationLabel: durationLabel(child.duration),
     companyPhone:  companyPhone || "",
-    promoNote,
+    promoNote:     campaignNote ?? promoNote,
   }
 }
 
