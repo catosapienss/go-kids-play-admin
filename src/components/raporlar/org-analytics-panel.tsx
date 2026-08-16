@@ -5,6 +5,7 @@ import { Cake, TrendingUp, Calendar, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDateRange } from "@/lib/reports/date-range-context"
 import { getOrganizationAnalytics } from "@/lib/services/reports.service"
+import { getBirthdayBreakdown, type BirthdayBreakdown } from "@/lib/services/organizations.service"
 import { type OrgAnalytics } from "@/types/reports"
 import { useReconnectToken } from "@/lib/reliability/realtime-supervisor"
 import { PanelSkeleton } from "@/components/dashboard/dashboard-skeletons"
@@ -28,6 +29,7 @@ function fmtDate(iso: string): string {
 export function OrgAnalyticsPanel() {
   const { range } = useDateRange()
   const [data, setData] = useState<OrgAnalytics | null>(null)
+  const [breakdown, setBreakdown] = useState<BirthdayBreakdown | null>(null)
   const [error, setError] = useState<string | null>(null)
   const reconnectToken = useReconnectToken()
 
@@ -38,6 +40,11 @@ export function OrgAnalyticsPanel() {
     void getOrganizationAnalytics(range)
       .then((r) => { if (!cancelled) setData(r) })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Yüklenemedi") })
+    // Additive v2 breakdown (standard/premium, weekday/weekend, extras) — best
+    // effort, never blocks the main panel.
+    void getBirthdayBreakdown(range)
+      .then((b) => { if (!cancelled) setBreakdown(b) })
+      .catch(() => { if (!cancelled) setBreakdown(null) })
     return () => { cancelled = true }
   }, [range, reconnectToken])
 
@@ -65,6 +72,28 @@ export function OrgAnalyticsPanel() {
         <Stat label="Ort. Çocuk"    value={data.avgChildren.toFixed(1)}            hint="etkinlik başına"     icon={Users}       tone="violet" />
         <Stat label="Toplam Gelir"  value={fmtTRY(data.revenue)}                   hint="paketler dahil"      icon={TrendingUp}  tone="emerald" />
       </div>
+
+      {/* v2 package breakdown — standard/premium + weekday/weekend + extras */}
+      {breakdown && breakdown.count > 0 && (
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
+          <h4 className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
+            Paket Dağılımı
+          </h4>
+          <div className="grid grid-cols-2 gap-2">
+            <MiniStat label="Standart" count={breakdown.standardCount} value={fmtTRY(breakdown.standardRevenue)} tone="slate" />
+            <MiniStat label="Premium" count={breakdown.premiumCount} value={fmtTRY(breakdown.premiumRevenue)} tone="violet" />
+            <MiniStat label="Hafta İçi" value={fmtTRY(breakdown.weekdayRevenue)} tone="sky" />
+            <MiniStat label="Hafta Sonu" value={fmtTRY(breakdown.weekendRevenue)} tone="amber" />
+            <MiniStat label="Ek Hizmet" value={fmtTRY(breakdown.extrasRevenue)} tone="emerald" />
+            <MiniStat label="Ek Misafir" value={fmtTRY(breakdown.extraGuestRevenue)} tone="emerald" />
+          </div>
+          {breakdown.legacyRevenue > 0 && (
+            <p className="text-[10px] text-slate-400">
+              Eski paketler (v2 öncesi): {fmtTRY(breakdown.legacyRevenue)} — tarihsel kayıtlar değiştirilmedi.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Busy days */}
       <div className="px-5 py-4">
@@ -127,6 +156,28 @@ function Stat({ label, value, hint, icon: Icon, tone }: {
       </div>
       <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">{value}</p>
       <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{hint}</p>
+    </div>
+  )
+}
+
+// ─── Compact breakdown tile ──────────────────────────────────────────────────
+
+function MiniStat({ label, value, count, tone }: {
+  label: string; value: string; count?: number; tone: keyof typeof TONE | "slate" | "sky" | "amber"
+}) {
+  const toneCls =
+    tone === "slate" ? "text-slate-600 dark:text-slate-300"
+    : tone === "sky" ? "text-sky-600 dark:text-sky-300"
+    : tone === "amber" ? "text-amber-600 dark:text-amber-300"
+    : tone === "violet" ? "text-violet-600 dark:text-violet-300"
+    : "text-emerald-600 dark:text-emerald-300"
+  return (
+    <div className="rounded-lg border border-slate-200/70 dark:border-slate-700/70 px-3 py-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">{label}</p>
+        {count != null && <span className="text-[10px] font-bold text-slate-400 tabular-nums">{count}</span>}
+      </div>
+      <p className={cn("text-sm font-bold tabular-nums mt-0.5", toneCls)}>{value}</p>
     </div>
   )
 }

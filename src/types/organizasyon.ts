@@ -56,6 +56,11 @@ export interface OrgOperationLog {
 export interface Organization {
   id: string
   name: string
+  /** v2: package tier for subtle STANDART/PREMIUM differentiation (null on
+   *  historical rows created before the two-package structure). */
+  packageTier?: "standard" | "premium" | null
+  /** v2: snapshot package name for display without a JOIN. */
+  packageLabel?: string
   childName: string
   childAge: number
   parentName: string

@@ -9,7 +9,7 @@ import { UpcomingEvents } from "@/components/dogum-gunleri/upcoming-events"
 import { OrgList } from "@/components/dogum-gunleri/org-list"
 import { BirthdayPackageManager } from "@/components/dogum-gunleri/package-manager"
 import { NewOrganizationInline } from "@/components/dogum-gunleri/new-organization-inline"
-import { listOrganizations, type OrganizationRow } from "@/lib/services/organizations.service"
+import { listOrganizations, listOrgPaymentTotals, type OrganizationRow } from "@/lib/services/organizations.service"
 import type { Organization, OrgStatus } from "@/types/organizasyon"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -29,7 +29,13 @@ const STATUS_FILTERS: { key: OrgStatus | "all"; label: string; active: string }[
 // the legacy UI enum (upcoming/ongoing/completed/cancelled) so newly-created
 // rows pass the filter pills. event_date in the future ⇒ "upcoming";
 // today ⇒ "ongoing"; past ⇒ "completed" unless DB already says cancelled.
-function rowToOrganization(r: OrganizationRow): Organization {
+function paymentStatusFor(total: number, paid: number): Organization["paymentStatus"] {
+  if (paid <= 0) return "unpaid"
+  if (paid >= total) return "paid"
+  return "partial"
+}
+
+function rowToOrganization(r: OrganizationRow, paid = 0): Organization {
   const dbStatus = r.status
   let uiStatus: Organization["status"]
   if (dbStatus === "cancelled") {
@@ -47,9 +53,12 @@ function rowToOrganization(r: OrganizationRow): Organization {
     else uiStatus = "ongoing"
   }
 
+  const total = Number(r.total_price ?? 0)
   return {
     id: r.id,
     name: r.child_name ? `${r.child_name} doğum günü` : "Doğum günü",
+    packageTier: (r.package_tier as Organization["packageTier"]) ?? null,
+    packageLabel: r.package_name_snapshot ?? undefined,
     childName: r.child_name,
     childAge: r.child_age ?? 0,
     parentName: r.parent_name,
@@ -59,11 +68,11 @@ function rowToOrganization(r: OrganizationRow): Organization {
     startTime: r.event_time ?? "",
     endTime: "",
     status: uiStatus,
-    paymentStatus: "unpaid",
-    totalAmount: Number(r.total_price ?? 0),
+    paymentStatus: paymentStatusFor(total, paid),
+    totalAmount: total,
     depositAmount: 0,
-    paidAmount: 0,
-    childCount: r.guest_count,
+    paidAmount: paid,
+    childCount: r.child_count ?? r.guest_count,
     extraChildCount: 0,
     notes: r.notes ?? "",
     specialRequests: "",
@@ -84,9 +93,9 @@ export default function DogumGunleriPage() {
   const reload = useCallback(async () => {
     try {
       const rows = await listOrganizations()
-      // eslint-disable-next-line no-console
-      console.log("[/dogum-gunleri] listOrganizations →", rows.length, "row(s)", rows)
-      setOrganizations(rows.map(rowToOrganization))
+      // Payment totals per reservation → payment-status badge on list/calendar.
+      const paidMap = await listOrgPaymentTotals(rows.map((r) => r.id))
+      setOrganizations(rows.map((r) => rowToOrganization(r, paidMap[r.id] ?? 0)))
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error("[/dogum-gunleri] load failed", e)

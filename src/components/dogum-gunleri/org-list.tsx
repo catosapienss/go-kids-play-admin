@@ -4,8 +4,8 @@ import Link from "next/link"
 import { ChevronRight, Clock, Users, Wallet, CalendarDays } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Organization } from "@/types/organizasyon"
-import { getPackageById } from "@/lib/organizasyon-data"
 import { OrgStatusBadge, PaymentStatusBadge } from "./org-status-badge"
+import { TierChip, tierAvatarGradient } from "./tier-chip"
 
 interface OrgListProps {
   organizations: Organization[]
@@ -26,7 +26,6 @@ export function OrgList({ organizations }: OrgListProps) {
   return (
     <div className="space-y-2">
       {organizations.map((org) => {
-        const pkg = getPackageById(org.packageId)
         const paidPct = org.totalAmount > 0 ? Math.min(100, (org.paidAmount / org.totalAmount) * 100) : 0
 
         return (
@@ -38,7 +37,7 @@ export function OrgList({ organizations }: OrgListProps) {
             {/* Package color bar + avatar */}
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="relative flex-shrink-0">
-                <div className={cn("w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-lg shadow-sm", pkg?.gradient ?? "from-violet-500 to-purple-600")}>
+                <div className={cn("w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-lg shadow-sm", tierAvatarGradient(org.packageTier))}>
                   {org.childName.charAt(0)}
                 </div>
                 {org.status === "ongoing" && (
@@ -64,11 +63,7 @@ export function OrgList({ organizations }: OrgListProps) {
                     <Clock className="w-3 h-3" />
                     {org.startTime}–{org.endTime}
                   </div>
-                  {pkg && (
-                    <span className={cn("px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-gradient-to-r text-white", pkg.gradient)}>
-                      {pkg.name}
-                    </span>
-                  )}
+                  <TierChip tier={org.packageTier} label={org.packageLabel} />
                 </div>
               </div>
             </div>

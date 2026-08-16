@@ -2,8 +2,8 @@ import Link from "next/link"
 import { Clock, Users, ChevronRight, Cake } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Organization } from "@/types/organizasyon"
-import { getPackageById } from "@/lib/organizasyon-data"
 import { OrgStatusBadge } from "./org-status-badge"
+import { tierAvatarGradient } from "./tier-chip"
 
 interface UpcomingEventsProps {
   organizations: Organization[]
@@ -41,7 +41,6 @@ export function UpcomingEvents({ organizations }: UpcomingEventsProps) {
       ) : (
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {sorted.map((org) => {
-            const pkg = getPackageById(org.packageId)
             const days = daysUntil(org.date)
             return (
               <Link
@@ -49,7 +48,7 @@ export function UpcomingEvents({ organizations }: UpcomingEventsProps) {
                 href={`/dogum-gunleri/${org.id}`}
                 className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
               >
-                <div className={cn("w-9 h-9 rounded-xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm flex-shrink-0", pkg?.gradient ?? "from-violet-500 to-purple-600")}>
+                <div className={cn("w-9 h-9 rounded-xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm flex-shrink-0", tierAvatarGradient(org.packageTier))}>
                   {org.childName.charAt(0)}
                 </div>
                 <div className="flex-1 min-w-0">

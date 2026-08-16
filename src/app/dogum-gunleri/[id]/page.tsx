@@ -237,12 +237,47 @@ export default function OrgDetailPage() {
           )}
         </div>
 
+        {/* Price breakdown — shows exactly why the total differs from the base.
+            Only for v2 reservations that carry a snapshot; historical rows have
+            no base_price and simply keep their original total above. */}
+        {org.base_price != null && (
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-3">Fiyat Dökümü</p>
+            <div className="space-y-1.5 text-xs">
+              <BreakdownLine label={`Paket (${org.is_weekend ? "hafta sonu" : "hafta içi"})`} value={fmt(Number(org.base_price))} bold />
+              {Number(org.extra_guest_charge ?? 0) > 0 && (
+                <BreakdownLine label={`Ek misafir · ${org.extra_guest_count} kişi`} value={`+${fmt(Number(org.extra_guest_charge))}`} />
+              )}
+              {(org.extras ?? []).map((ex) => (
+                <BreakdownLine key={ex.key} label={ex.label} value={`+${fmt(Number(ex.price))}`} />
+              ))}
+              {Number(org.discount ?? 0) > 0 && (
+                <BreakdownLine label="İndirim" value={`−${fmt(Number(org.discount))}`} discount />
+              )}
+              <div className="border-t border-slate-200 dark:border-slate-700 my-1" />
+              <BreakdownLine label="TOPLAM" value={fmt(total)} bold big />
+            </div>
+          </div>
+        )}
+
         {/* Info card */}
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
-          <InfoRow icon={Package} label="Paket" value={pkg?.name ?? "—"} />
+          <InfoRow icon={Package} label="Paket" value={org.package_name_snapshot ?? pkg?.name ?? "—"} />
+          {org.package_tier && (
+            <InfoRow icon={Package} label="Paket Tipi" value={org.package_tier === "premium" ? "Premium" : "Standart"} />
+          )}
+          {org.is_weekend != null && (
+            <InfoRow icon={Calendar} label="Gün Tipi" value={org.is_weekend ? "Hafta Sonu" : "Hafta İçi"} />
+          )}
           <InfoRow icon={Calendar} label="Tarih" value={fmtDate(org.event_date)} />
           <InfoRow icon={Clock} label="Saat" value={org.event_time?.slice(0,5) || "—"} />
-          <InfoRow icon={Users} label="Misafir" value={`${org.guest_count} çocuk`} />
+          <InfoRow
+            icon={Users}
+            label="Misafir"
+            value={org.adult_count != null || org.child_count != null
+              ? `${org.adult_count ?? 0} yetişkin · ${org.child_count ?? 0} çocuk (${org.guest_count} toplam)`
+              : `${org.guest_count} misafir`}
+          />
           <InfoRow icon={Phone} label="Veli" value={`${org.parent_name}${org.parent_phone ? ` · ${org.parent_phone}` : ""}`} />
           {org.notes && (
             <div className="px-4 py-3 bg-amber-50 dark:bg-amber-500/5 border-t border-amber-100 dark:border-amber-500/20">
@@ -293,6 +328,23 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Cake; label: strin
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400 w-20 flex-shrink-0">{label}</p>
       <p className="text-sm font-semibold text-slate-900 dark:text-white text-right flex-1 truncate">{value}</p>
+    </div>
+  )
+}
+
+function BreakdownLine({ label, value, bold, big, discount }: {
+  label: string; value: string; bold?: boolean; big?: boolean; discount?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className={cn("text-slate-600 dark:text-slate-300", big ? "text-sm font-bold" : bold ? "font-semibold" : "")}>{label}</span>
+      <span className={cn(
+        "tabular-nums",
+        big ? "text-base font-black text-slate-900 dark:text-white"
+          : bold ? "font-bold text-slate-900 dark:text-white"
+          : discount ? "text-emerald-600 dark:text-emerald-400"
+          : "text-slate-700 dark:text-slate-200",
+      )}>{value}</span>
     </div>
   )
 }
