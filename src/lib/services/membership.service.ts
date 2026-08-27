@@ -337,6 +337,66 @@ export async function consumeMembershipUse(id: string): Promise<Membership> {
   return m
 }
 
+// ─── Personal access entitlements (migration 039) ────────────────────────────
+//
+// Customer-specific punch passes (e.g. "Elis — 20 entry days, ₺5.000") bound to
+// one parent+child, never shown in the public package catalog. They reuse the
+// punch_pass model + consume_membership_use, so consuming a personal-access day
+// is just `consumeMembershipUse(entitlement.id)`.
+
+export interface CreatePersonalEntitlementInput {
+  parentId: string
+  childId: string
+  label: string
+  price: number
+  uses: number
+  paymentMethod?: "cash" | "card" | "transfer"
+  paymentStatus?: "paid" | "unpaid" | "partial"
+  notes?: string | null
+}
+
+export async function createPersonalEntitlement(input: CreatePersonalEntitlementInput): Promise<Membership> {
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc("create_personal_entitlement", {
+    p_parent_id:      input.parentId,
+    p_child_id:       input.childId,
+    p_label:          input.label,
+    p_price:          input.price,
+    p_uses:           input.uses,
+    p_payment_method: input.paymentMethod ?? "cash",
+    p_payment_status: input.paymentStatus ?? "paid",
+    p_notes:          input.notes ?? null,
+  })
+  if (error) throw toAppError(error)
+  const row = (Array.isArray(data) ? data[0] : data) as DbMembershipRow
+  const m = dbRowToMembership(row)
+  void recordAudit({
+    action: "membership.personal_entitlement.create",
+    entityType: "membership",
+    entityId: m.id,
+    meta: { label: input.label, uses: input.uses, price: input.price },
+  })
+  return m
+}
+
+/** Active personal-access entitlements for a child, most recent first — feeds
+ *  the staff "Use Personal Access" picker (20-Day / 14-Day, each with remaining
+ *  count). Excludes exhausted/cancelled ones. */
+export async function listActivePersonalEntitlements(childId: string): Promise<Membership[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("memberships")
+    .select("*")
+    .eq("child_id", childId)
+    .eq("is_personal", true)
+    .eq("type", "punch_pass")
+    .eq("status", "active")
+    .gt("remaining_uses", 0)
+    .order("created_at", { ascending: false })
+  if (error) throw toAppError(error)
+  return ((data ?? []) as DbMembershipRow[]).map(dbRowToMembership)
+}
+
 export async function cancelMembership(id: string, reason = "manual"): Promise<Membership> {
   return safeFinanceAction(
     `membership.cancel:${id}`,

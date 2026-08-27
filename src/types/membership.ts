@@ -53,6 +53,12 @@ export interface DbMembershipRow {
   branch_id: string | null
   created_at: string
   updated_at: string
+  // Personal-entitlement fields (migration 039; nullable on older rows).
+  price?: number | null
+  is_personal?: boolean | null
+  label?: string | null
+  payment_status?: string | null
+  payment_method?: string | null
 }
 
 // ─── Configurable membership packages (migration 035) ───────────────────────
@@ -131,6 +137,12 @@ export interface Membership {
   branchId: string | null
   createdAt: string
   updatedAt: string
+  // Personal entitlement (migration 039)
+  price: number | null
+  isPersonal: boolean
+  label: string | null
+  paymentStatus: string | null
+  paymentMethod: string | null
 }
 
 export function dbRowToMembership(r: DbMembershipRow): Membership {
@@ -152,7 +164,17 @@ export function dbRowToMembership(r: DbMembershipRow): Membership {
     branchId: r.branch_id,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    price: r.price != null ? Number(r.price) : null,
+    isPersonal: r.is_personal === true,
+    label: r.label ?? null,
+    paymentStatus: r.payment_status ?? null,
+    paymentMethod: r.payment_method ?? null,
   }
+}
+
+/** True for a customer-specific personal access entitlement (migration 039). */
+export function isPersonalEntitlement(m: Membership): boolean {
+  return m.isPersonal && m.type === "punch_pass"
 }
 
 // ─── Pause row ───────────────────────────────────────────────────────────────
