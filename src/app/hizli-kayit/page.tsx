@@ -6,6 +6,7 @@ import { CustomerPanel } from "@/components/hizli-kayit/customer-panel"
 import { FastChildrenInput } from "@/components/hizli-kayit/fast-children-input"
 import { SessionDurationPicker } from "@/components/hizli-kayit/session-duration-picker"
 import { MembershipStartBanner } from "@/components/hizli-kayit/membership-start-banner"
+import { PersonalAccessBanner } from "@/components/hizli-kayit/personal-access-banner"
 import { InlineRetailPanel } from "@/components/hizli-kayit/inline-retail-panel"
 import { DiscountSection } from "@/components/hizli-kayit/discount-section"
 import { DiscountActionButton } from "@/components/hizli-kayit/discount-action-button"
@@ -18,8 +19,8 @@ import type { LookupResult } from "@/lib/services/entry-code.service"
 import { ShiftClockCard } from "@/components/personel/shift-clock-card"
 import { createChild, createSession, createPayment, deductWallet, updateChildNotes } from "@/lib/services/pos.service"
 import { getApplicableCampaign } from "@/lib/services/campaign.service"
-import { getMembershipStatusForChild, recordWeekendUsage } from "@/lib/services/membership.service"
-import type { MembershipRuleStatus } from "@/types/membership"
+import { getMembershipStatusForChild, recordWeekendUsage, listActivePersonalEntitlements, consumeMembershipUse } from "@/lib/services/membership.service"
+import type { MembershipRuleStatus, Membership } from "@/types/membership"
 import { checkoutSale } from "@/lib/services/retail"
 import {
   recordDiscount, computeDiscountAmount, maxDiscountForRole,
@@ -108,10 +109,14 @@ export default function HizliKayitPage() {
   // Per-child active-membership entitlement (keyed by real child UUID). Fetched
   // when a saved child is present; drives the "Üyelikle Başlat" affordance.
   const [memStatus, setMemStatus] = useState<Record<string, MembershipRuleStatus>>({})
+  // Per-child active personal access entitlements (punch passes), keyed by
+  // child UUID. Drives the "Kişisel Hakkı Kullan" picker.
+  const [personalEnts, setPersonalEnts] = useState<Record<string, Membership[]>>({})
 
   const discountLimits = useSettingsSection("discounts")
 
-  // Fetch today's membership entitlement for each saved (UUID) child once.
+  // Fetch today's membership entitlement + personal entitlements for each saved
+  // (UUID) child once.
   useEffect(() => {
     const isUUID = (id: string) =>
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
@@ -127,6 +132,16 @@ export default function HizliKayitPage() {
       setMemStatus((prev) => {
         const next = { ...prev }
         for (const [id, st] of pairs) next[id] = st as MembershipRuleStatus
+        return next
+      })
+    })
+    void Promise.all(
+      missing.map(async (id) => [id, await listActivePersonalEntitlements(id).catch(() => [])] as const),
+    ).then((pairs) => {
+      if (cancelled) return
+      setPersonalEnts((prev) => {
+        const next = { ...prev }
+        for (const [id, list] of pairs) next[id] = list as Membership[]
         return next
       })
     })
@@ -275,6 +290,28 @@ export default function HizliKayitPage() {
     }))
   }, [memStatus])
 
+  /** Pick (or clear) a personal access entitlement for a child. Selecting one
+   *  makes this a ₺0 visit that consumes exactly that entitlement at submit;
+   *  clears any monthly-membership selection so the two never collide. */
+  const handlePickPersonalEntitlement = useCallback((id: string, m: Membership | null) => {
+    setChildren((prev) => prev.map((c) => {
+      if (c.id !== id) return c
+      if (!m) {
+        return { ...c, personalEntitlementId: undefined, personalEntitlementLabel: undefined, duration: null, price: 0 }
+      }
+      return {
+        ...c,
+        personalEntitlementId: m.id,
+        personalEntitlementLabel: m.label ?? "Kişisel Erişim",
+        // Clear monthly membership if it was set — one free source at a time.
+        membershipId: undefined, membershipMode: undefined, membershipMinutes: undefined,
+        // "free" satisfies validation; the visit is ₺0 and unlimited for the day.
+        duration: "free",
+        price: 0,
+      }
+    }))
+  }, [])
+
   const handleRemoveChild = useCallback(
     (id: string) => {
       setChildren((prev) => {
@@ -376,14 +413,21 @@ export default function HizliKayitPage() {
           }
         }
 
+        // Personal access entitlement (₺0): a full-day unlimited entry that
+        // consumes one remaining day of a customer-specific punch pass.
+        const entitlementId = child.personalEntitlementId
+        const isEntitlement = !!entitlementId
         // Membership session (₺0): weekday → unlimited; weekend → the child's
-        // remaining daily allowance. No campaign bonus applies to membership play.
-        const isMembership = !!child.membershipId
-        const mins = isMembership
-          ? (child.membershipMode === "weekday" ? 0 : (child.membershipMinutes ?? 0))
-          : durationMinutes(child.duration)
+        // remaining daily allowance. No campaign bonus applies to free play.
+        const isMembership = !isEntitlement && !!child.membershipId
+        const isFree = isMembership || isEntitlement
+        const mins = isEntitlement
+          ? 0 // unlimited for the entry day
+          : isMembership
+            ? (child.membershipMode === "weekday" ? 0 : (child.membershipMinutes ?? 0))
+            : durationMinutes(child.duration)
         // Apply the Mon/Wed 60→90 bonus to a paid 60-min purchase only.
-        const bonus = !isMembership && mins === 60 && camp60.applies ? (camp60.bonusMinutes ?? 0) : 0
+        const bonus = !isFree && mins === 60 && camp60.applies ? (camp60.bonusMinutes ?? 0) : 0
         const totalMins = mins + bonus
         campaignBonusByChild[i] = bonus
         if (bonus > 0) campaignApplied = true
@@ -400,8 +444,8 @@ export default function HizliKayitPage() {
             duration_minutes: totalMins,
             created_by: user?.id,
             child_notes: childNote,
-            // membership play (₺0, tracked)
-            membership_id: isMembership ? child.membershipId : undefined,
+            // free play (₺0, tracked) — monthly membership OR personal entitlement
+            membership_id: isEntitlement ? entitlementId : (isMembership ? child.membershipId : undefined),
             // campaign breakdown (bonus never revenue)
             purchased_minutes: bonus > 0 ? mins : null,
             bonus_minutes: bonus > 0 ? bonus : null,
@@ -445,6 +489,20 @@ export default function HizliKayitPage() {
           } catch (usageErr: unknown) {
             // eslint-disable-next-line no-console
             console.warn("[hizli-kayit] weekend usage record failed", usageErr)
+          }
+        }
+
+        // Consume exactly one day of the chosen personal entitlement. The
+        // session is already created (the visit happened), so a consume failure
+        // is logged, not rolled back — the picker only offers entitlements with
+        // remaining > 0, and consume_membership_use is row-locked.
+        if (isEntitlement && entitlementId) {
+          try {
+            await consumeMembershipUse(entitlementId)
+          } catch (consErr: unknown) {
+            // eslint-disable-next-line no-console
+            console.warn("[hizli-kayit] personal entitlement consume failed", consErr)
+            toast.warning("Giriş oluşturuldu ancak kişisel hak kullanımı düşülemedi")
           }
         }
 
@@ -600,11 +658,18 @@ export default function HizliKayitPage() {
               const sc = children.find((c) => c.id === selectedChildId)
               if (!sc) return null
               return (
-                <MembershipStartBanner
-                  status={memStatus[sc.id]}
-                  active={!!sc.membershipId}
-                  onToggle={(on) => handleToggleMembership(sc.id, on)}
-                />
+                <>
+                  <PersonalAccessBanner
+                    entitlements={personalEnts[sc.id] ?? []}
+                    selectedId={sc.personalEntitlementId}
+                    onSelect={(m) => handlePickPersonalEntitlement(sc.id, m)}
+                  />
+                  <MembershipStartBanner
+                    status={memStatus[sc.id]}
+                    active={!!sc.membershipId}
+                    onToggle={(on) => handleToggleMembership(sc.id, on)}
+                  />
+                </>
               )
             })()}
             <SessionDurationPicker

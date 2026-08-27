@@ -35,6 +35,11 @@ export interface ChildEntry {
   /** Weekend timed session length (minutes) — the remaining daily allowance
    *  at the moment the membership session was started. */
   membershipMinutes?: number
+  /** When set, this entry is a ₺0 visit on a customer-specific personal access
+   *  entitlement (punch_pass). One remaining day is consumed at submit. Kept
+   *  separate from `membershipId` (monthly) so staff pick the exact one. */
+  personalEntitlementId?: string
+  personalEntitlementLabel?: string
   /** Free campaign minutes granted to THIS child at registration (e.g. the
    *  Mon/Wed 60→90 bonus). Set only when a bonus actually applied. Carried so
    *  the printed label's end-time and promo line reflect the gift — the
