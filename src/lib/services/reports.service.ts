@@ -19,6 +19,84 @@ function rpcRange(r?: DateRange): { p_from: string | null; p_to: string | null }
     : { p_from: null, p_to: null }
 }
 
+// ─── Child attendance analytics (migration 040) ──────────────────────────────
+// Single source of truth: one `sessions` row per child entry, TR-local days.
+
+export interface HourCount { hour: number; count: number }
+export interface DayCount { date: string; count: number }
+export interface AttendanceAnalytics {
+  totalEntries: number
+  uniqueChildren: number
+  returningChildren: number
+  firstTimeChildren: number
+  activeDays: number
+  avgPerDay: number
+  busiestDay: DayCount | null
+  lowestDay: DayCount | null
+  busiestHour: HourCount | null
+  hourly: HourCount[]
+  weekdayEntries: number
+  weekendEntries: number
+}
+
+const EMPTY_ATTENDANCE: AttendanceAnalytics = {
+  totalEntries: 0, uniqueChildren: 0, returningChildren: 0, firstTimeChildren: 0,
+  activeDays: 0, avgPerDay: 0, busiestDay: null, lowestDay: null, busiestHour: null,
+  hourly: [], weekdayEntries: 0, weekendEntries: 0,
+}
+
+export async function getAttendanceAnalytics(range?: DateRange): Promise<AttendanceAnalytics> {
+  const supabase = createClient()
+  const raw = await safeReadRpc<Record<string, unknown>, Record<string, unknown>>(
+    () => supabase.rpc("get_attendance_analytics", rpcRange(range)),
+    { fallback: {}, label: "get_attendance_analytics" },
+  )
+  if (!raw || Object.keys(raw).length === 0) return { ...EMPTY_ATTENDANCE }
+  const dc = (v: unknown): DayCount | null => {
+    const o = v as { date?: string; count?: number } | null
+    return o && o.date ? { date: o.date, count: Number(o.count ?? 0) } : null
+  }
+  const hc = (v: unknown): HourCount | null => {
+    const o = v as { hour?: number; count?: number } | null
+    return o && o.hour != null ? { hour: Number(o.hour), count: Number(o.count ?? 0) } : null
+  }
+  return {
+    totalEntries: Number(raw.total_entries ?? 0),
+    uniqueChildren: Number(raw.unique_children ?? 0),
+    returningChildren: Number(raw.returning_children ?? 0),
+    firstTimeChildren: Number(raw.first_time_children ?? 0),
+    activeDays: Number(raw.active_days ?? 0),
+    avgPerDay: Number(raw.avg_per_day ?? 0),
+    busiestDay: dc(raw.busiest_day),
+    lowestDay: dc(raw.lowest_day),
+    busiestHour: hc(raw.busiest_hour),
+    hourly: Array.isArray(raw.hourly) ? (raw.hourly as unknown[]).map((h) => hc(h)!).filter(Boolean) : [],
+    weekdayEntries: Number(raw.weekday_entries ?? 0),
+    weekendEntries: Number(raw.weekend_entries ?? 0),
+  }
+}
+
+export interface DailyTrafficRevenue {
+  day: string
+  childEntries: number
+  playgroundRevenue: number
+  retailRevenue: number
+}
+
+export async function getDailyTrafficRevenue(range?: DateRange): Promise<DailyTrafficRevenue[]> {
+  const supabase = createClient()
+  const rows = await safeReadRpc<Array<Record<string, unknown>>, Array<Record<string, unknown>>>(
+    () => supabase.rpc("get_daily_traffic_revenue", rpcRange(range)),
+    { fallback: [], label: "get_daily_traffic_revenue" },
+  )
+  return (rows ?? []).map((r) => ({
+    day: String(r.day ?? ""),
+    childEntries: Number(r.child_entries ?? 0),
+    playgroundRevenue: Number(r.playground_revenue ?? 0),
+    retailRevenue: Number(r.retail_revenue ?? 0),
+  }))
+}
+
 // ─── Sensible empty defaults (used when migration 012 is not yet applied) ────
 
 const EMPTY_PERIOD = { gross: 0, net: 0, cash: 0, card: 0, wallet: 0, tx_count: 0, refunded: 0, session_count: 0 }

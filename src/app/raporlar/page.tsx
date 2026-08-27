@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import {
-  LayoutDashboard, TrendingUp, Activity, Users, Cake, ShieldCheck, ShoppingBag,
+  LayoutDashboard, TrendingUp, Activity, Users, Cake, ShieldCheck, ShoppingBag, Baby,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MainLayout } from "@/components/layout/main-layout"
@@ -23,6 +23,8 @@ import { RetailDiscountsPanel } from "@/components/raporlar/retail-discounts-pan
 import { DailyNotesReportPanel } from "@/components/raporlar/daily-notes-report-panel"
 import { RetailReportPanel } from "@/components/raporlar/retail-report-panel"
 import { WasteReportPanel } from "@/components/raporlar/waste-report-panel"
+import { AttendanceAnalyticsPanel } from "@/components/raporlar/attendance-analytics-panel"
+import { RevenueTrafficPanel } from "@/components/raporlar/revenue-traffic-panel"
 
 // ─── /raporlar — Advanced Reporting & Business Insights ──────────────────────
 //
@@ -36,14 +38,15 @@ import { WasteReportPanel } from "@/components/raporlar/waste-report-panel"
 //
 // All panels accept range from `useDateRange()` so the picker rules the page.
 
-type Tab = "overview" | "revenue" | "retail" | "customer" | "ops"
+type Tab = "overview" | "attendance" | "revenue" | "retail" | "customer" | "ops"
 
 const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: "overview", label: "Genel Bakış",  icon: LayoutDashboard },
-  { id: "revenue",  label: "Gelir",        icon: TrendingUp },
-  { id: "retail",   label: "Perakende",    icon: ShoppingBag },
-  { id: "customer", label: "Müşteri",      icon: Users },
-  { id: "ops",      label: "Operasyon",    icon: Activity },
+  { id: "overview",   label: "Genel Bakış",  icon: LayoutDashboard },
+  { id: "attendance", label: "Katılım",      icon: Baby },
+  { id: "revenue",    label: "Gelir",        icon: TrendingUp },
+  { id: "retail",     label: "Perakende",    icon: ShoppingBag },
+  { id: "customer",   label: "Müşteri",      icon: Users },
+  { id: "ops",        label: "Operasyon",    icon: Activity },
 ]
 
 export default function RaporlarPage() {
@@ -97,6 +100,14 @@ export default function RaporlarPage() {
                 <StaffPerformancePanel />
               </div>
               <DayEndPanel />
+            </div>
+          )}
+
+          {tab === "attendance" && (
+            <div className="space-y-5">
+              <AttendanceAnalyticsPanel />
+              <RevenueTrafficPanel />
+              <PeakHoursHeatmap />
             </div>
           )}
 
