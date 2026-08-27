@@ -34,7 +34,10 @@ alter table public.memberships
   add column if not exists is_personal    boolean not null default false,
   add column if not exists label          text,
   add column if not exists payment_status text,   -- 'paid' | 'unpaid' | 'partial'
-  add column if not exists payment_method text;    -- 'cash' | 'card' | 'transfer'
+  add column if not exists payment_method text,    -- 'cash' | 'card' | 'transfer'
+  -- Minutes of play granted per entry day (e.g. Elis = 120 = 2 hours).
+  -- NULL / 0 means an unlimited full-day entry.
+  add column if not exists daily_minutes  integer;
 
 -- ── 2. Relax the one-active-punch_pass rule for personal entitlements ────────
 -- The original index (014) blocks two active rows of the same (parent, type).
@@ -57,7 +60,8 @@ create or replace function public.create_personal_entitlement(
   p_uses           integer,
   p_payment_method text default 'cash',
   p_payment_status text default 'paid',
-  p_notes          text default null
+  p_notes          text default null,
+  p_daily_minutes  integer default null
 ) returns public.memberships
 language plpgsql
 security definer
@@ -76,12 +80,12 @@ begin
   insert into public.memberships (
     parent_id, child_id, type, status,
     started_at, total_uses, remaining_uses,
-    price, is_personal, label, payment_status, payment_method,
+    price, is_personal, label, payment_status, payment_method, daily_minutes,
     provider, notes
   ) values (
     p_parent_id, p_child_id, 'punch_pass', 'active',
     now(), p_uses, p_uses,
-    p_price, true, p_label, p_payment_status, p_payment_method,
+    p_price, true, p_label, p_payment_status, p_payment_method, p_daily_minutes,
     'manual', p_notes
   )
   returning * into v_row;
@@ -90,7 +94,7 @@ begin
 end;
 $$;
 
-grant execute on function public.create_personal_entitlement(uuid, uuid, text, numeric, integer, text, text, text) to authenticated;
+grant execute on function public.create_personal_entitlement(uuid, uuid, text, numeric, integer, text, text, text, integer) to authenticated;
 
 commit;
 

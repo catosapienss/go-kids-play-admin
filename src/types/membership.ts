@@ -59,6 +59,7 @@ export interface DbMembershipRow {
   label?: string | null
   payment_status?: string | null
   payment_method?: string | null
+  daily_minutes?: number | null
 }
 
 // ─── Configurable membership packages (migration 035) ───────────────────────
@@ -143,6 +144,8 @@ export interface Membership {
   label: string | null
   paymentStatus: string | null
   paymentMethod: string | null
+  /** Minutes of play per entry day; null/0 = unlimited full-day entry. */
+  dailyMinutes: number | null
 }
 
 export function dbRowToMembership(r: DbMembershipRow): Membership {
@@ -169,6 +172,7 @@ export function dbRowToMembership(r: DbMembershipRow): Membership {
     label: r.label ?? null,
     paymentStatus: r.payment_status ?? null,
     paymentMethod: r.payment_method ?? null,
+    dailyMinutes: r.daily_minutes != null ? Number(r.daily_minutes) : null,
   }
 }
 

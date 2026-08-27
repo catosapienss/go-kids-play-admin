@@ -40,6 +40,8 @@ export interface ChildEntry {
    *  separate from `membershipId` (monthly) so staff pick the exact one. */
   personalEntitlementId?: string
   personalEntitlementLabel?: string
+  /** Minutes of play the entitlement grants per day (0 = unlimited). */
+  personalEntitlementMinutes?: number
   /** Free campaign minutes granted to THIS child at registration (e.g. the
    *  Mon/Wed 60→90 bonus). Set only when a bonus actually applied. Carried so
    *  the printed label's end-time and promo line reflect the gift — the

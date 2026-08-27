@@ -303,9 +303,11 @@ export default function HizliKayitPage() {
         ...c,
         personalEntitlementId: m.id,
         personalEntitlementLabel: m.label ?? "Kişisel Erişim",
+        personalEntitlementMinutes: m.dailyMinutes ?? 0,
         // Clear monthly membership if it was set — one free source at a time.
         membershipId: undefined, membershipMode: undefined, membershipMinutes: undefined,
-        // "free" satisfies validation; the visit is ₺0 and unlimited for the day.
+        // "free" satisfies validation; the visit is ₺0 (timed to the
+        // entitlement's daily minutes, or unlimited when 0).
         duration: "free",
         price: 0,
       }
@@ -422,7 +424,7 @@ export default function HizliKayitPage() {
         const isMembership = !isEntitlement && !!child.membershipId
         const isFree = isMembership || isEntitlement
         const mins = isEntitlement
-          ? 0 // unlimited for the entry day
+          ? (child.personalEntitlementMinutes ?? 0) // entitlement's daily minutes (0 = unlimited)
           : isMembership
             ? (child.membershipMode === "weekday" ? 0 : (child.membershipMinutes ?? 0))
             : durationMinutes(child.duration)

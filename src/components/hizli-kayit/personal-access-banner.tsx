@@ -62,6 +62,7 @@ export function PersonalAccessBanner({ entitlements, selectedId, onSelect }: Pro
                 )}>
                   {remaining} gün kaldı
                   <span className="text-slate-400 font-normal"> / {m.totalUses ?? 0}</span>
+                  {m.dailyMinutes ? <span className="text-slate-400 font-normal"> · {m.dailyMinutes} dk</span> : null}
                 </span>
               </span>
             </button>

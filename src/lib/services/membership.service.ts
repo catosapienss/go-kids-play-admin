@@ -350,6 +350,8 @@ export interface CreatePersonalEntitlementInput {
   label: string
   price: number
   uses: number
+  /** Minutes of play per entry day; null/0 = unlimited full-day entry. */
+  dailyMinutes?: number | null
   paymentMethod?: "cash" | "card" | "transfer"
   paymentStatus?: "paid" | "unpaid" | "partial"
   notes?: string | null
@@ -366,6 +368,7 @@ export async function createPersonalEntitlement(input: CreatePersonalEntitlement
     p_payment_method: input.paymentMethod ?? "cash",
     p_payment_status: input.paymentStatus ?? "paid",
     p_notes:          input.notes ?? null,
+    p_daily_minutes:  input.dailyMinutes ?? null,
   })
   if (error) throw toAppError(error)
   const row = (Array.isArray(data) ? data[0] : data) as DbMembershipRow

@@ -75,7 +75,10 @@ export function PersonalEntitlementPanel() {
               <div key={r.id} className="px-5 py-3.5 flex flex-wrap items-center gap-x-6 gap-y-2">
                 <div className="min-w-[180px] flex-1">
                   <p className="text-sm font-bold text-slate-900 dark:text-white">{r.label || "Kişisel Erişim"}</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">{r.parentName} · {r.childName}</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {r.parentName} · {r.childName}
+                    {r.dailyMinutes ? ` · ${r.dailyMinutes} dk/gün` : " · sınırsız/gün"}
+                  </p>
                 </div>
                 <Metric label="Toplam" value={String(r.totalUses ?? 0)} />
                 <Metric label="Kullanılan" value={String(used)} />
@@ -140,6 +143,7 @@ function CreatePersonalEntitlementDialog({ onClose, onCreated }: { onClose: () =
   const [label, setLabel] = useState("")
   const [price, setPrice] = useState("")
   const [uses, setUses] = useState("")
+  const [dailyMinutes, setDailyMinutes] = useState("120")
   const [method, setMethod] = useState<"cash" | "card" | "transfer">("cash")
   const [busy, setBusy] = useState(false)
 
@@ -161,7 +165,8 @@ function CreatePersonalEntitlementDialog({ onClose, onCreated }: { onClose: () =
     try {
       await createPersonalEntitlement({
         parentId: customer.id, childId, label: label.trim(),
-        price: p, uses: u, paymentMethod: method, paymentStatus: "paid",
+        price: p, uses: u, dailyMinutes: parseInt(dailyMinutes) || 0,
+        paymentMethod: method, paymentStatus: "paid",
       })
       toast.success("Kişisel erişim hakkı oluşturuldu")
       onCreated()
@@ -218,6 +223,10 @@ function CreatePersonalEntitlementDialog({ onClose, onCreated }: { onClose: () =
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Hak Adı" value={label} onChange={setLabel} placeholder="20 Günlük Erişim" />
                 <Field label="Kullanım (gün)" type="number" value={uses} onChange={setUses} placeholder="20" />
+              </div>
+              <div>
+                <Field label="Günlük Süre (dk) · 0 = sınırsız" type="number" value={dailyMinutes} onChange={setDailyMinutes} placeholder="120" />
+                <p className="text-[10px] text-slate-400 mt-1">Her giriş günü kaç dakika oyun hakkı verir (ör. 120 = 2 saat).</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Fiyat (₺)" type="number" value={price} onChange={setPrice} placeholder="5000" />
