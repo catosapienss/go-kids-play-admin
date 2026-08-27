@@ -379,6 +379,29 @@ export async function createPersonalEntitlement(input: CreatePersonalEntitlement
   return m
 }
 
+export interface PersonalEntitlementRow extends Membership {
+  parentName: string
+  childName: string
+}
+
+/** All personal entitlements (any status) with parent + child names, newest
+ *  first — for the admin management panel. */
+export async function listAllPersonalEntitlements(): Promise<PersonalEntitlementRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("memberships")
+    .select("*, parents(full_name), children(full_name)")
+    .eq("is_personal", true)
+    .order("created_at", { ascending: false })
+  if (error) throw toAppError(error)
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => {
+    const m = dbRowToMembership(r as unknown as DbMembershipRow)
+    const parent = r.parents as { full_name?: string } | null
+    const child = r.children as { full_name?: string } | null
+    return { ...m, parentName: parent?.full_name ?? "—", childName: child?.full_name ?? "—" }
+  })
+}
+
 /** Active personal-access entitlements for a child, most recent first — feeds
  *  the staff "Use Personal Access" picker (20-Day / 14-Day, each with remaining
  *  count). Excludes exhausted/cancelled ones. */

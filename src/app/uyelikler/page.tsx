@@ -9,6 +9,7 @@ import { MembershipsListPanel } from "@/components/uyelikler/memberships-list-pa
 import { MembershipPackageSaleDialog } from "@/components/uyelikler/membership-package-sale-dialog"
 import { MembershipAdminSettings } from "@/components/uyelikler/membership-admin-settings"
 import { MembershipCampaignReportPanel } from "@/components/uyelikler/membership-campaign-report-panel"
+import { PersonalEntitlementPanel } from "@/components/uyelikler/personal-entitlement-panel"
 
 // ─── /uyelikler — Membership Management ──────────────────────────────────────
 //
@@ -53,6 +54,9 @@ export default function MembershipsPage() {
         </section>
         <section>
           <MembershipCampaignReportPanel key={`r${refreshKey}`} />
+        </section>
+        <section>
+          <PersonalEntitlementPanel key={`p${refreshKey}`} />
         </section>
         <section>
           <MembershipsListPanel key={`l${refreshKey}`} />
