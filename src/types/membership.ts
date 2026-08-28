@@ -178,7 +178,7 @@ export function dbRowToMembership(r: DbMembershipRow): Membership {
 
 /** True for a customer-specific personal access entitlement (migration 039). */
 export function isPersonalEntitlement(m: Membership): boolean {
-  return m.isPersonal && m.type === "punch_pass"
+  return m.isPersonal === true
 }
 
 // ─── Pause row ───────────────────────────────────────────────────────────────

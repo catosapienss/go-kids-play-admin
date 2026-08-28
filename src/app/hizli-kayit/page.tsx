@@ -19,7 +19,7 @@ import type { LookupResult } from "@/lib/services/entry-code.service"
 import { ShiftClockCard } from "@/components/personel/shift-clock-card"
 import { createChild, createSession, createPayment, deductWallet, updateChildNotes } from "@/lib/services/pos.service"
 import { getApplicableCampaign } from "@/lib/services/campaign.service"
-import { getMembershipStatusForChild, recordWeekendUsage, listActivePersonalEntitlements, consumeMembershipUse } from "@/lib/services/membership.service"
+import { getMembershipStatusForChild, recordWeekendUsage, listActivePersonalEntitlements, consumePersonalEntitlementUse } from "@/lib/services/membership.service"
 import type { MembershipRuleStatus, Membership } from "@/types/membership"
 import { checkoutSale } from "@/lib/services/retail"
 import {
@@ -500,7 +500,7 @@ export default function HizliKayitPage() {
         // remaining > 0, and consume_membership_use is row-locked.
         if (isEntitlement && entitlementId) {
           try {
-            await consumeMembershipUse(entitlementId)
+            await consumePersonalEntitlementUse(entitlementId)
           } catch (consErr: unknown) {
             // eslint-disable-next-line no-console
             console.warn("[hizli-kayit] personal entitlement consume failed", consErr)

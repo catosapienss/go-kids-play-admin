@@ -357,6 +357,40 @@ export interface CreatePersonalEntitlementInput {
   notes?: string | null
 }
 
+// Production's `memberships` table uses the migration-035 column names
+// (`membership_type`, `start_at`, `end_at`) rather than migration-014's
+// (`type`, `started_at`, `ends_at`). The personal-entitlement code speaks the
+// LIVE schema directly via this mapper, independent of the legacy
+// `dbRowToMembership`, so it is correct against production.
+function rowToEntitlement(r: Record<string, unknown>): Membership {
+  const n = (v: unknown): number | null => (v == null ? null : Number(v))
+  return {
+    id: r.id as string,
+    parentId: r.parent_id as string,
+    childId: (r.child_id as string) ?? null,
+    type: ((r.membership_type as string) ?? "punch_pass") as Membership["type"],
+    status: ((r.status as string) ?? "active") as Membership["status"],
+    startedAt: (r.start_at as string) ?? (r.created_at as string) ?? "",
+    endsAt: (r.end_at as string) ?? null,
+    pausedAt: null,
+    pausedSeconds: 0,
+    totalUses: n(r.total_uses),
+    remainingUses: n(r.remaining_uses),
+    notes: (r.notes as string) ?? null,
+    provider: "manual",
+    externalId: null,
+    branchId: (r.branch_id as string) ?? null,
+    createdAt: (r.created_at as string) ?? "",
+    updatedAt: (r.updated_at as string) ?? "",
+    price: n(r.price),
+    isPersonal: r.is_personal === true,
+    label: (r.label as string) ?? null,
+    paymentStatus: (r.payment_status as string) ?? null,
+    paymentMethod: (r.payment_method as string) ?? null,
+    dailyMinutes: n(r.daily_minutes),
+  }
+}
+
 export async function createPersonalEntitlement(input: CreatePersonalEntitlementInput): Promise<Membership> {
   const supabase = createClient()
   const { data, error } = await supabase.rpc("create_personal_entitlement", {
@@ -371,8 +405,8 @@ export async function createPersonalEntitlement(input: CreatePersonalEntitlement
     p_daily_minutes:  input.dailyMinutes ?? null,
   })
   if (error) throw toAppError(error)
-  const row = (Array.isArray(data) ? data[0] : data) as DbMembershipRow
-  const m = dbRowToMembership(row)
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown>
+  const m = rowToEntitlement(row)
   void recordAudit({
     action: "membership.personal_entitlement.create",
     entityType: "membership",
@@ -398,7 +432,7 @@ export async function listAllPersonalEntitlements(): Promise<PersonalEntitlement
     .order("created_at", { ascending: false })
   if (error) throw toAppError(error)
   return ((data ?? []) as Array<Record<string, unknown>>).map((r) => {
-    const m = dbRowToMembership(r as unknown as DbMembershipRow)
+    const m = rowToEntitlement(r)
     const parent = r.parents as { full_name?: string } | null
     const child = r.children as { full_name?: string } | null
     return { ...m, parentName: parent?.full_name ?? "—", childName: child?.full_name ?? "—" }
@@ -415,12 +449,29 @@ export async function listActivePersonalEntitlements(childId: string): Promise<M
     .select("*")
     .eq("child_id", childId)
     .eq("is_personal", true)
-    .eq("type", "punch_pass")
+    .eq("membership_type", "punch_pass")
     .eq("status", "active")
     .gt("remaining_uses", 0)
     .order("created_at", { ascending: false })
   if (error) throw toAppError(error)
-  return ((data ?? []) as DbMembershipRow[]).map(dbRowToMembership)
+  return ((data ?? []) as Array<Record<string, unknown>>).map(rowToEntitlement)
+}
+
+/** Consume one day of a personal entitlement (dedicated RPC on the live schema;
+ *  auto-expires at 0, row-locked). */
+export async function consumePersonalEntitlementUse(id: string): Promise<Membership> {
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc("consume_personal_entitlement", { p_membership_id: id })
+  if (error) throw toAppError(error)
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown>
+  const m = rowToEntitlement(row)
+  void recordAudit({
+    action: "membership.personal_entitlement.consume",
+    entityType: "membership",
+    entityId: m.id,
+    meta: { remainingUses: m.remainingUses ?? 0 },
+  })
+  return m
 }
 
 export async function cancelMembership(id: string, reason = "manual"): Promise<Membership> {

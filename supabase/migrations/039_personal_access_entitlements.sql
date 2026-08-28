@@ -2,56 +2,39 @@
 --
 -- PRODUCTION-SAFE, ADDITIVE, NON-DESTRUCTIVE.
 --
+-- IMPORTANT: production's `memberships` table uses the migration-035 column
+-- names — `membership_type`, `start_at`, `end_at` — NOT migration-014's
+-- (`type`, `started_at`, `ends_at`). This migration + the personal-entitlement
+-- code speak the LIVE schema.
+--
 -- Models a customer-specific playground-access entitlement (e.g. "Serhat Bey /
--- Elis — 20 entry days for ₺5.000") on the EXISTING `memberships` table as a
--- punch_pass, rather than a public catalog package. Reuses the proven
--- `consume_membership_use` RPC (decrements remaining_uses, auto-expires at 0,
--- row-locked for concurrency).
+-- Elis — 20 entry days for ₺5.000, 120 dk/day") as a personal punch_pass bound
+-- to one parent+child, flagged is_personal=true so it never appears in the
+-- public catalog.
 --
--- Why not the catalog: `membership_packages` is the public, selectable catalog.
--- A personal entitlement is a `memberships` row bound to ONE parent+child and
--- flagged `is_personal = true`, so it is never offered to other customers.
---
--- What this migration does:
+-- What it does:
 --   1. Adds nullable/defaulted columns to `memberships` (is_personal, label,
---      payment_status, payment_method). Existing rows are untouched.
---   2. Relaxes the "one active punch_pass per parent" unique index to EXEMPT
---      personal entitlements, so the same parent can hold e.g. a 20-day AND a
---      14-day personal entitlement active at once (staff picks which to use).
---      Regular memberships keep the original one-active-per-type rule.
---   3. Adds `create_personal_entitlement(...)` — a NEW, additive RPC. No
---      existing RPC is modified.
+--      payment_status, total_uses, daily_minutes). Existing rows untouched.
+--   2. Adds two NEW additive RPCs: create_personal_entitlement (insert) and
+--      consume_personal_entitlement (decrement one day, auto-expire at 0,
+--      row-locked). No existing RPC or table is modified.
 --
--- What it deliberately does NOT do:
---   • It does not modify any existing membership, session, payment or report.
---   • It does not add anything to the public package catalog.
---   • It does not touch `consume_membership_use` (reused as-is).
+-- The unique-index adjustment that lets a parent hold two active personal
+-- entitlements (20-day + 14-day) at once is applied separately at deploy time,
+-- after inspecting the live index name — see deploy notes.
 
 begin;
 
--- ── 1. memberships — personal-entitlement columns (additive) ────────────────
+-- ── 1. memberships — personal-entitlement columns (additive, live schema) ────
 alter table public.memberships
   add column if not exists is_personal    boolean not null default false,
   add column if not exists label          text,
   add column if not exists payment_status text,   -- 'paid' | 'unpaid' | 'partial'
-  add column if not exists payment_method text,    -- 'cash' | 'card' | 'transfer'
-  -- Minutes of play granted per entry day (e.g. Elis = 120 = 2 hours).
-  -- NULL / 0 means an unlimited full-day entry.
-  add column if not exists daily_minutes  integer;
+  add column if not exists total_uses     integer,
+  add column if not exists daily_minutes  integer; -- minutes/day; null/0 = unlimited
+-- payment_method already exists in the live schema.
 
--- ── 2. Relax the one-active-punch_pass rule for personal entitlements ────────
--- The original index (014) blocks two active rows of the same (parent, type).
--- Personal entitlements must be allowed to coexist (20-day + 14-day active
--- together), so exempt them. Regular memberships are unaffected.
-drop index if exists public.uq_one_active_membership_per_parent_type;
-create unique index if not exists uq_one_active_membership_per_parent_type
-  on public.memberships (parent_id, type)
-  where status in ('active', 'paused') and is_personal = false;
-
--- ── 3. create_personal_entitlement — NEW additive RPC ───────────────────────
--- Inserts a personal punch_pass bound to parent+child. Records the one-time
--- entitlement price + payment status on the membership row itself so it is
--- preserved separately from the ₺0 per-visit sessions it later authorises.
+-- ── 2. create_personal_entitlement — NEW additive RPC (live columns) ────────
 create or replace function public.create_personal_entitlement(
   p_parent_id      uuid,
   p_child_id       uuid,
@@ -63,10 +46,8 @@ create or replace function public.create_personal_entitlement(
   p_notes          text default null,
   p_daily_minutes  integer default null
 ) returns public.memberships
-language plpgsql
-security definer
-set search_path = public
-as $$
+language plpgsql security definer set search_path = public
+as $FN$
 declare
   v_row public.memberships%rowtype;
 begin
@@ -78,23 +59,53 @@ begin
   end if;
 
   insert into public.memberships (
-    parent_id, child_id, type, status,
-    started_at, total_uses, remaining_uses,
+    parent_id, child_id, membership_type, status,
+    start_at, total_uses, remaining_uses,
     price, is_personal, label, payment_status, payment_method, daily_minutes,
-    provider, notes
+    notes
   ) values (
     p_parent_id, p_child_id, 'punch_pass', 'active',
     now(), p_uses, p_uses,
     p_price, true, p_label, p_payment_status, p_payment_method, p_daily_minutes,
-    'manual', p_notes
+    p_notes
   )
   returning * into v_row;
 
   return v_row;
 end;
-$$;
+$FN$;
 
 grant execute on function public.create_personal_entitlement(uuid, uuid, text, numeric, integer, text, text, text, integer) to authenticated;
+
+-- ── 3. consume_personal_entitlement — NEW additive RPC (live columns) ───────
+-- Decrements one remaining day; auto-expires at 0; row-locked for concurrency.
+-- Self-contained (does not depend on the legacy consume_membership_use).
+create or replace function public.consume_personal_entitlement(
+  p_membership_id uuid
+) returns public.memberships
+language plpgsql security definer set search_path = public
+as $FN$
+declare
+  v_row public.memberships%rowtype;
+begin
+  select * into v_row from public.memberships where id = p_membership_id for update;
+  if v_row.id is null then raise exception 'entitlement_not_found'; end if;
+  if v_row.is_personal is not true then raise exception 'not_personal_entitlement'; end if;
+  if v_row.status <> 'active' then raise exception 'entitlement_not_active'; end if;
+  if coalesce(v_row.remaining_uses, 0) <= 0 then raise exception 'no_uses_left'; end if;
+
+  update public.memberships
+     set remaining_uses = remaining_uses - 1,
+         status = case when remaining_uses - 1 <= 0 then 'expired' else 'active' end,
+         updated_at = now()
+   where id = p_membership_id
+   returning * into v_row;
+
+  return v_row;
+end;
+$FN$;
+
+grant execute on function public.consume_personal_entitlement(uuid) to authenticated;
 
 commit;
 
