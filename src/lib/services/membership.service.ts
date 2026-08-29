@@ -430,17 +430,27 @@ export interface PersonalEntitlementRow extends Membership {
  *  first — for the admin management panel. */
 export async function listAllPersonalEntitlements(): Promise<PersonalEntitlementRow[]> {
   const supabase = createClient()
+  // No PostgREST embedding — memberships has more than one relationship to
+  // children (child_id + the membership_children join table), which makes an
+  // embed ambiguous. Fetch entitlements, then resolve names in a second pass.
   const { data, error } = await supabase
     .from("memberships")
-    .select("*, parents(full_name), children(full_name)")
+    .select("*")
     .eq("is_personal", true)
     .order("created_at", { ascending: false })
   if (error) throw toAppError(error)
-  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => {
+  const rows = (data ?? []) as Array<Record<string, unknown>>
+  const parentIds = Array.from(new Set(rows.map((r) => r.parent_id as string).filter(Boolean)))
+  const childIds = Array.from(new Set(rows.map((r) => r.child_id as string).filter(Boolean)))
+  const [parentsRes, childrenRes] = await Promise.all([
+    parentIds.length ? supabase.from("parents").select("id, full_name").in("id", parentIds) : Promise.resolve({ data: [] }),
+    childIds.length ? supabase.from("children").select("id, full_name").in("id", childIds) : Promise.resolve({ data: [] }),
+  ])
+  const pName = new Map((parentsRes.data ?? []).map((p) => [p.id as string, p.full_name as string]))
+  const cName = new Map((childrenRes.data ?? []).map((c) => [c.id as string, c.full_name as string]))
+  return rows.map((r) => {
     const m = rowToEntitlement(r)
-    const parent = r.parents as { full_name?: string } | null
-    const child = r.children as { full_name?: string } | null
-    return { ...m, parentName: parent?.full_name ?? "—", childName: child?.full_name ?? "—" }
+    return { ...m, parentName: pName.get(r.parent_id as string) ?? "—", childName: cName.get(r.child_id as string) ?? "—" }
   })
 }
 
