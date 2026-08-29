@@ -90,7 +90,7 @@ export async function getDailyTrafficRevenue(range?: DateRange): Promise<DailyTr
     { fallback: [], label: "get_daily_traffic_revenue" },
   )
   return (rows ?? []).map((r) => ({
-    day: String(r.day ?? ""),
+    day: String(r.bucket_day ?? ""),
     childEntries: Number(r.child_entries ?? 0),
     playgroundRevenue: Number(r.playground_revenue ?? 0),
     retailRevenue: Number(r.retail_revenue ?? 0),
