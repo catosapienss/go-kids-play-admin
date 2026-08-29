@@ -39,17 +39,22 @@ export interface DbMembershipRow {
   id: string
   parent_id: string
   child_id: string | null
-  type: MembershipType
+  // Production uses `membership_type` (migration 035); older code/migrations
+  // used `type`. Both optional here — the mapper prefers whichever is present.
+  membership_type?: MembershipType
+  type?: MembershipType
   status: MembershipStatus
-  started_at: string
-  ends_at: string | null
-  paused_at: string | null
-  paused_seconds: number | string
+  start_at?: string
+  started_at?: string
+  end_at?: string | null
+  ends_at?: string | null
+  paused_at?: string | null
+  paused_seconds?: number | string
   total_uses: number | null
   remaining_uses: number | null
   notes: string | null
-  provider: string
-  external_id: string | null
+  provider?: string
+  external_id?: string | null
   branch_id: string | null
   created_at: string
   updated_at: string
@@ -149,21 +154,24 @@ export interface Membership {
 }
 
 export function dbRowToMembership(r: DbMembershipRow): Membership {
+  // Prefer production column names (membership_type / start_at / end_at),
+  // falling back to legacy names so the mapper is correct on either schema.
+  const t = (r.membership_type ?? r.type ?? "punch_pass") as MembershipType
   return {
     id: r.id,
     parentId: r.parent_id,
     childId: r.child_id,
-    type: r.type,
+    type: t,
     status: r.status,
-    startedAt: r.started_at,
-    endsAt: r.ends_at,
-    pausedAt: r.paused_at,
+    startedAt: r.start_at ?? r.started_at ?? r.created_at,
+    endsAt: r.end_at ?? r.ends_at ?? null,
+    pausedAt: r.paused_at ?? null,
     pausedSeconds: Number(r.paused_seconds) || 0,
     totalUses: r.total_uses,
     remainingUses: r.remaining_uses,
     notes: r.notes,
-    provider: r.provider,
-    externalId: r.external_id,
+    provider: r.provider ?? "manual",
+    externalId: r.external_id ?? null,
     branchId: r.branch_id,
     createdAt: r.created_at,
     updatedAt: r.updated_at,

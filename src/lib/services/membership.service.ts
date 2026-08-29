@@ -44,7 +44,12 @@ function mapMembershipError(message: string): AppError | null {
 
 export async function listAllMemberships(opts: { limit?: number; status?: string } = {}): Promise<Membership[]> {
   const supabase = createClient()
-  let q = supabase.from("memberships").select("*").order("created_at", { ascending: false }).limit(opts.limit ?? 100)
+  // Exclude personal entitlements — those are shown in their own panel, not the
+  // regular membership list. `.or(is_personal.is.null,...)` also covers legacy
+  // rows created before the column existed.
+  let q = supabase.from("memberships").select("*")
+    .or("is_personal.is.null,is_personal.eq.false")
+    .order("created_at", { ascending: false }).limit(opts.limit ?? 100)
   if (opts.status) q = q.eq("status", opts.status)
   const { data, error } = await q
   if (error) throw toAppError(error)
