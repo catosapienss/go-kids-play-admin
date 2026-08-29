@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { PieChart, Pie, Cell, Tooltip } from "recharts"
 import { getRevenueByCategory } from "@/lib/services/reports.service"
-import { resolvePreset, type RevenueByCategory, type TenderSplit } from "@/types/reports"
+import { PRESET_LABEL, fmtRange, type RevenueByCategory, type TenderSplit } from "@/types/reports"
+import { useDateRange } from "@/lib/reports/date-range-context"
 import { useReconnectToken } from "@/lib/reliability/realtime-supervisor"
 import { PanelSkeleton } from "@/components/dashboard/dashboard-skeletons"
 import { EmptyState } from "@/components/system/empty-state"
@@ -16,9 +17,8 @@ import { EmptyState } from "@/components/system/empty-state"
 // matching report tab's own figure — the legend, tooltip and chart therefore
 // always share a single source of truth. Amounts are shown in full ₺.
 //
-// This card is deliberately PINNED TO TODAY: it is the "how did today go right
-// now" panel, so it ignores the page's DateRangePicker and always resolves the
-// `today` preset itself. Every other panel still follows the picker.
+// This card follows the page's DateRangePicker like every other panel, so the
+// mix + tender strip reflect the selected window (Bugün / Son 7 gün / özel).
 
 // Full Turkish currency — no abbreviation (₺14.280, not 14,2K).
 function fmtTRY(n: number): string {
@@ -61,11 +61,10 @@ export function RevenueMixDonut() {
   const [error, setError] = useState<string | null>(null)
   const reconnectToken = useReconnectToken()
 
-  // Always today — recomputed when the calendar day flips (a panel left open
-  // overnight rolls over on its next reconnect tick) instead of being frozen
-  // at mount.
-  const dayKey = new Date().toDateString()
-  const range = useMemo(() => resolvePreset("today"), [dayKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Follows the page's DateRangePicker — the whole card reflects the selected
+  // window (Bugün / Son 7 gün / özel aralık), consistent with the rest of the
+  // report tabs.
+  const { range, preset } = useDateRange()
 
   useEffect(() => {
     let cancelled = false
@@ -77,7 +76,7 @@ export function RevenueMixDonut() {
     return () => { cancelled = true }
   }, [range, reconnectToken])
 
-  const subtitle = "Bugün"
+  const subtitle = preset === "custom" ? fmtRange(range) : PRESET_LABEL[preset]
 
   const slices = useMemo<Slice[]>(() => {
     if (!data) return []
