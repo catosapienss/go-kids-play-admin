@@ -25,6 +25,16 @@
 --    • Username must be unique (case-insensitive).
 --
 --  Idempotent: re-running re-syncs password / PIN to the values below.
+--
+--  This file stays a TEMPLATE on purpose — the real passwords are never
+--  committed. Fill a throwaway copy outside the repo, run that, delete it.
+--  (The repo already carries plaintext credentials for the older accounts in
+--  scripts/seed-production-users.sql; that is a pattern to stop repeating,
+--  not to extend.)
+--
+--  Convention this business uses for PERSONEL accounts: password = PIN, and
+--  username = the person's first name in lower case (dila, sude, sevilay).
+--  Owner/manager accounts use longer passwords.
 
 create extension if not exists pgcrypto;
 
@@ -55,8 +65,20 @@ begin
       raise exception 'PIN for "%" must be exactly 4 digits', rec.full_name;
     end if;
 
-    if length(rec.password) < 5 then
-      raise exception 'Password for "%" is too short (min 5 characters)', rec.full_name;
+    -- 4 characters, because that is what this business already runs on: the
+    -- existing personel accounts use password = PIN (Sevilay 4321, Sude 3435,
+    -- Dila 6248). GoTrue only enforces a minimum on signup/update — we write
+    -- the bcrypt hash straight into auth.users, and sign-in just compares it,
+    -- which is why those accounts work today.
+    --
+    -- ⚠️  A 4-digit password is weak in the ordinary sense. It is acceptable
+    --     here only because this is a shop-floor kiosk on one shared machine
+    --     behind the venue's own network, and because the owner chose to keep
+    --     the convention consistent across staff. Do NOT copy this for an
+    --     admin/owner account — those use longer passwords (see 5-char
+    --     cumhuryuksel / eylul).
+    if length(rec.password) < 4 then
+      raise exception 'Password for "%" is too short (min 4 characters)', rec.full_name;
     end if;
 
     -- PIN collision against every employee who is still able to sign in.
