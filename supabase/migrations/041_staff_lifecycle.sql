@@ -99,7 +99,7 @@ begin
        set banned_until = timestamptz '2999-12-31 00:00:00+00',
            updated_at   = now()
      where id = p_user_id;
-  exception when insufficient_privilege or undefined_table then
+  exception when insufficient_privilege or undefined_table or undefined_column then
     raise notice 'auth.users not writable here — set banned_until manually for %', p_user_id;
   end;
 
@@ -157,7 +157,7 @@ begin
 
   begin
     update auth.users set banned_until = null, updated_at = now() where id = p_user_id;
-  exception when insufficient_privilege or undefined_table then
+  exception when insufficient_privilege or undefined_table or undefined_column then
     raise notice 'auth.users not writable here — clear banned_until manually for %', p_user_id;
   end;
 
