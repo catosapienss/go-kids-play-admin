@@ -19,6 +19,33 @@ interface AuthContextValue {
   signOut: () => Promise<void>
 }
 
+// ─── Archived-account guard ──────────────────────────────────────────────────
+//
+// A departed employee keeps their profile row forever (every historical
+// session, closing and report resolves their name through it). What they lose
+// is the ability to *use* the account. Migration 041 revokes that at three
+// layers — auth.users.banned_until, the staff_quick_auth credential mirror,
+// and these profile flags. This is the app-side layer: whatever the auth
+// server decides, an archived profile never becomes a logged-in user here.
+
+export const ARCHIVED_ACCOUNT_ERROR = "ACCOUNT_ARCHIVED"
+
+function isArchived(row: Record<string, unknown>): boolean {
+  // Deliberately keyed on `disabled` and `left_at` only.
+  //
+  // `is_active` is NOT consulted: it predates this flow, nothing in the UI
+  // ever surfaced it, and a legacy row carrying is_active=false would lock a
+  // working employee out mid-shift. Archiving sets all three, so the two
+  // flags checked here are always enough to recognise a departed account —
+  // without betting anyone's shift on a column whose history we can't see.
+  //
+  // `left_at` may not exist yet on an un-migrated database; absent reads as
+  // undefined and `disabled` carries the meaning on its own.
+  if ((row.disabled as boolean | null | undefined) === true) return true
+  if (row.left_at != null) return true
+  return false
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -26,6 +53,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [roleSource, setRoleSource] = useState<AuthContextValue["roleSource"]>("none")
   const router = useRouter()
+
+  // Tear down a session that belongs to an archived account. Called from
+  // loadProfile for both the login path and the "restore session on mount"
+  // path, so an employee archived mid-shift is dropped on their next reload.
+  const rejectArchivedSession = useCallback(async (email: string) => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    setUser(null)
+    setRoleSource("none")
+    console.warn("[auth] archived account rejected:", email)
+  }, [])
 
   // ─── Role loading ─────────────────────────────────────────────────────────
   //
@@ -43,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   //
   // Returns the role + source so signIn can act on it without re-querying.
   const loadProfile = useCallback(
-    async (userId: string, email: string): Promise<UserRole> => {
+    async (userId: string, email: string): Promise<UserRole | null> => {
       const supabase = createClient()
 
       // Attempt 1 — full shape including branch_id (migration 005 applied).
@@ -54,6 +92,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single()
 
       if (!full.error && full.data) {
+        // Archived / disabled employee — Supabase Auth happily issued a
+        // session (it never looks at public.profiles), so the app has to be
+        // the one that says no. Migration 041 also sets auth.users.banned_until
+        // so this normally never fires; it stays as the belt to that braces,
+        // and it is what protects an account disabled purely from /personeller.
+        if (isArchived(full.data as Record<string, unknown>)) {
+          await rejectArchivedSession(email)
+          return null
+        }
+
         const role = (full.data.role as UserRole) ?? "cashier"
         setUser({
           id: userId,
@@ -85,6 +133,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single()
 
         if (!minimal.error && minimal.data) {
+          if (isArchived(minimal.data as Record<string, unknown>)) {
+            await rejectArchivedSession(email)
+            return null
+          }
           const role = (minimal.data.role as UserRole) ?? "cashier"
           setUser({
             id: userId,
@@ -128,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       return "manager"
     },
-    [],
+    [rejectArchivedSession],
   )
 
   // ─── Bootstrap session from cookie on mount ──────────────────────────────
@@ -182,6 +234,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         const role = await loadProfile(session.user.id, session.user.email ?? "")
+        // Archived employee — loadProfile has already signed the session back
+        // out. Surface it as a login failure rather than a blank dashboard.
+        if (role === null) throw new Error(ARCHIVED_ACCOUNT_ERROR)
         // Best-effort last-login stamp. Failure is non-fatal.
         supabase.rpc("touch_last_login").then(() => undefined, () => undefined)
         router.push(defaultRouteForRole(role))
