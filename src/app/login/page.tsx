@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Eye, EyeOff, Loader2, AlertCircle, User } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
+import { ARCHIVED_ACCOUNT_ERROR, useAuth } from "@/contexts/auth-context"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { BrandLogo, BrandAccentStrip } from "@/components/brand-logo"
@@ -49,7 +49,12 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Giriş başarısız."
       const turkishError =
-        message.includes("Invalid login") || message.includes("invalid_credentials")
+        // Archived employee — either the app-side profile guard or the
+        // auth-server ban set by migration 041.
+        message.includes(ARCHIVED_ACCOUNT_ERROR) ||
+        message.includes("banned") || message.includes("User is banned")
+          ? "Bu hesap devre dışı bırakılmış. Yöneticinizle iletişime geçin."
+          : message.includes("Invalid login") || message.includes("invalid_credentials")
           ? "Kullanıcı adı veya şifre hatalı."
           : message.includes("Email not confirmed")
           ? "Hesap doğrulanmamış. Yöneticinizle iletişime geçin."
